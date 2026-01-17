@@ -8,8 +8,20 @@ set -e
 echo "🐳 Building and deploying with Docker..."
 echo ""
 
-# Stop existing container
-docker-compose down 2>/dev/null || true
+# Force stop and remove existing container
+echo "🗑️  Cleaning up existing container..."
+docker stop tod-admin 2>/dev/null || true
+docker rm -f tod-admin 2>/dev/null || true
+docker-compose down --remove-orphans 2>/dev/null || true
+
+# Kill any process using port 3000
+PORT=${PORT:-3000}
+PID=$(lsof -ti:$PORT 2>/dev/null || true)
+if [ -n "$PID" ]; then
+    echo "⚠️  Killing process on port $PORT (PID: $PID)"
+    kill -9 $PID 2>/dev/null || true
+    sleep 1
+fi
 
 # Build with BuildKit for faster builds and better caching
 export DOCKER_BUILDKIT=1
