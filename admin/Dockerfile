@@ -13,8 +13,11 @@ RUN --mount=type=cache,target=/root/.npm \
 # Copy source code
 COPY . .
 
-# Build with reduced memory footprint for 1GB droplet
-ENV NODE_OPTIONS="--max-old-space-size=512"
+# Build with strict resource limits for 1GB droplet
+# Limit to single core and 450MB memory
+ENV NODE_OPTIONS="--max-old-space-size=450"
+ENV UV_THREADPOOL_SIZE=1
+ENV VITE_CJS_IGNORE_WARNING=true
 RUN npm run build
 
 # Production stage

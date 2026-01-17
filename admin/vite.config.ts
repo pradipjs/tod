@@ -5,7 +5,6 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react()],
   build: {
-    // Reduce memory usage during build
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
@@ -13,13 +12,16 @@ export default defineConfig({
           vendor: ['react', 'react-dom', 'react-router-dom'],
         },
       },
+      // Limit parallel processing
+      maxParallelFileOps: 1,
     },
-    // Reduce parallel processing to avoid memory issues in Docker
     minify: 'esbuild',
     target: 'esnext',
+    sourcemap: false,
   },
   esbuild: {
-    // Reduce esbuild's resource usage
     logOverride: { 'this-is-undefined-in-esm': 'silent' },
+    // Use single core for low-resource servers
+    loader: { '.js': 'jsx', '.ts': 'tsx' },
   },
 })
