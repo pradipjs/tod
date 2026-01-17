@@ -10,12 +10,16 @@ services:
     ports:
       - "${PORT:-8080}:8080"
     volumes:
+      # Mount host directory to container /data
+      # Host path: ${DATA_DIR} (e.g., /safe/db)
+      # Container path: /data
+      # Database file: /data/truthordare.db (in container) = ${DATA_DIR}/truthordare.db (on host)
       - ${DATA_DIR:-./data}:/data
     environment:
       - APP_ENV=${APP_ENV:-production}
       - PORT=8080
       - LOG_LEVEL=${LOG_LEVEL:-info}
-      - DB_PATH=/data/truthordare.db
+      - DB_PATH=${DB_PATH:-/data/truthordare.db}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
       - GROQ_API_KEY=${GROQ_API_KEY}
       - GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
