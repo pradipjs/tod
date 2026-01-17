@@ -38,7 +38,6 @@ RUN mkdir -p /data
 # Environment variables (can be overridden)
 ENV APP_ENV=production
 ENV PORT=8080
-ENV DB_DRIVER=sqlite
 ENV DB_PATH=/data/truthordare.db
 ENV CORS_ORIGINS=http://localhost:3000
 ENV LOG_LEVEL=info

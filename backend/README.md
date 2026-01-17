@@ -50,7 +50,6 @@ The server will start at `http://localhost:8080`
 |----------|-------------|---------|
 | APP_ENV | Environment (development/production) | development |
 | PORT | Server port | 8080 |
-| DB_DRIVER | Database driver | sqlite |
 | DB_PATH | SQLite database path | ./truthordare.db |
 | ADMIN_OTP_KEY | OTP key for admin authentication | (required) |
 | GROQ_API_KEY | Groq API key for AI generation | (optional) |

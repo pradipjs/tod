@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -9,28 +8,16 @@ import (
 
 // Config holds all configuration for the application.
 type Config struct {
-	// Server configuration
 	Port string
 	Env  string
 
-	// Database configuration
-	DBDriver   string
-	DBHost     string
-	DBPort     string
-	DBUser     string
-	DBPassword string
-	DBName     string
-	DBPath     string
-	DBSSLMode  string
+	DBPath string
 
-	// API configuration
 	APIPrefix  string
 	APIVersion string
 
-	// CORS configuration
 	CORSOrigins []string
 
-	// Scheduler configuration
 	Scheduler SchedulerConfig
 }
 
@@ -58,14 +45,7 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		Port:        getEnv("PORT", "8080"),
 		Env:         getEnv("APP_ENV", "development"),
-		DBDriver:    getEnv("DB_DRIVER", "sqlite"),
-		DBHost:      getEnv("DB_HOST", "localhost"),
-		DBPort:      getEnv("DB_PORT", "5432"),
-		DBUser:      getEnv("DB_USER", "postgres"),
-		DBPassword:  getEnv("DB_PASSWORD", ""),
-		DBName:      getEnv("DB_NAME", "truthordare.db"),
-		DBPath:      getEnv("DB_PATH", ""),
-		DBSSLMode:   getEnv("DB_SSL_MODE", "disable"),
+		DBPath:      getEnv("DB_PATH", "truthordare.db"),
 		APIPrefix:   getEnv("API_PREFIX", "/api"),
 		APIVersion:  getEnv("API_VERSION", "v1"),
 		CORSOrigins: strings.Split(corsOrigins, ","),
@@ -85,26 +65,8 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
-// DSN returns the database connection string.
 func (c *Config) DSN() string {
-	switch c.DBDriver {
-	case "postgres":
-		return fmt.Sprintf(
-			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-			c.DBHost, c.DBPort, c.DBUser, c.DBPassword, c.DBName, c.DBSSLMode,
-		)
-	case "sqlite":
-		// Use DB_PATH if specified (for production), otherwise use DB_NAME
-		if c.DBPath != "" {
-			return c.DBPath
-		}
-		return c.DBName
-	default:
-		if c.DBPath != "" {
-			return c.DBPath
-		}
-		return c.DBName
-	}
+	return c.DBPath
 }
 
 // IsDevelopment returns true if running in development mode.

@@ -577,7 +577,6 @@ npm run dev
 ```
 APP_ENV=development
 PORT=8080
-DB_DRIVER=sqlite
 DB_PATH=./data/tod.db
 ADMIN_OTP_KEY=your-secure-otp-key
 GROQ_API_KEY=your-groq-api-key

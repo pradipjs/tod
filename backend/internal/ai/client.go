@@ -71,29 +71,15 @@ var (
 	clientOnce    sync.Once
 )
 
-// DefaultConfig returns the default configuration from environment variables
-// Supports both OPENAI_API_KEY/AI_MODEL and legacy GROQ_API_KEY/GROQ_MODEL
 func DefaultConfig() ClientConfig {
-	// Check for OPENAI_API_KEY first, then fall back to GROQ_API_KEY
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		apiKey = os.Getenv("GROQ_API_KEY")
-	}
+	apiKey := os.Getenv("GROQ_API_KEY")
 
-	// Check for AI_API_URL first, then GROQ_API_URL
-	apiURL := os.Getenv("AI_API_URL")
-	if apiURL == "" {
-		apiURL = os.Getenv("GROQ_API_URL")
-	}
+	apiURL := os.Getenv("GROQ_API_URL")
 	if apiURL == "" {
 		apiURL = "https://api.groq.com/openai/v1/chat/completions"
 	}
 
-	// Check for AI_MODEL first, then GROQ_MODEL
-	model := os.Getenv("AI_MODEL")
-	if model == "" {
-		model = os.Getenv("GROQ_MODEL")
-	}
+	model := os.Getenv("GROQ_MODEL")
 	if model == "" {
 		model = "llama-3.3-70b-versatile"
 	}

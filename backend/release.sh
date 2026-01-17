@@ -56,12 +56,12 @@ docker run -d \
     -p "$PORT:8080" \
     -v "$DATA_DIR:/data" \
     -e APP_ENV="${APP_ENV:-production}" \
-    -e OPENAI_API_KEY="${OPENAI_API_KEY}" \
-    -e AI_MODEL="${AI_MODEL:-llama-3.3-70b-versatile}" \
-    -e AI_API_URL="${AI_API_URL}" \
     -e DB_PATH="/data/truthordare.db" \
     -e CORS_ORIGINS="${CORS_ORIGINS:-http://localhost:3000}" \
     -e LOG_LEVEL="${LOG_LEVEL:-info}" \
+    -e GROQ_API_KEY="${GROQ_API_KEY}" \
+    -e GROQ_MODEL="${GROQ_MODEL:-llama-3.3-70b-versatile}" \
+    -e GROQ_API_URL="${GROQ_API_URL:-https://api.groq.com/openai/v1/chat/completions}" \
     -e SCHEDULER_ENABLED="${SCHEDULER_ENABLED:-true}" \
     "$IMAGE_NAME"
 
