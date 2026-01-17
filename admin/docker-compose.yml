@@ -5,6 +5,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      shm_size: '2gb'
+      args:
+        - NODE_ENV=production
     container_name: tod-admin
     restart: unless-stopped
     ports:
