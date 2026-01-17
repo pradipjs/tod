@@ -5,6 +5,14 @@
 
 set -e
 
+# Navigate to script directory
+cd "$(dirname "$0")"
+
+# Load environment variables from .env file if it exists
+if [ -f .env ]; then
+    export $(grep -v '^#' .env | xargs)
+fi
+
 # Configuration
 IMAGE_NAME="tod-admin"
 CONTAINER_NAME="tod-admin"
@@ -17,9 +25,6 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 echo -e "${GREEN}=== Truth or Dare Admin Release ===${NC}"
-
-# Navigate to script directory
-cd "$(dirname "$0")"
 
 # Pull latest code
 echo -e "${YELLOW}Pulling latest code...${NC}"

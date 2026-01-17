@@ -5,6 +5,15 @@
 
 set -e
 
+# Navigate to script directory
+cd "$(dirname "$0")"
+
+# Load environment variables from .env file if it exists
+if [ -f .env ]; then
+    echo -e "${YELLOW}Loading environment from .env file...${NC}"
+    export $(grep -v '^#' .env | xargs)
+fi
+
 # Configuration
 IMAGE_NAME="tod-backend"
 CONTAINER_NAME="tod-backend"
