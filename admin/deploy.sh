@@ -41,7 +41,18 @@ docker-compose build --progress=plain
 
 echo ""
 echo "🚀 Starting container..."
-docker-compose up -d
+
+# Final cleanup before starting
+CONTAINER_PID=$(sudo docker inspect --format '{{.State.Pid}}' tod-admin 2>/dev/null || true)
+if [ -n "$CONTAINER_PID" ] && [ "$CONTAINER_PID" != "0" ]; then
+    echo "⚠️  Killing remaining container process (PID: $CONTAINER_PID)"
+    sudo kill -9 $CONTAINER_PID 2>/dev/null || true
+    sleep 1
+fi
+sudo docker rm -f tod-admin 2>/dev/null || true
+
+# Start container
+sudo docker-compose up -d
 
 echo ""
 echo "✅ Deployment complete!"

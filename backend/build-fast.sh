@@ -43,7 +43,18 @@ echo ""
 echo "✅ Build complete!"
 echo ""
 echo "🚀 Starting container..."
-docker-compose up -d
+
+# Final cleanup before starting
+CONTAINER_PID=$(sudo docker inspect --format '{{.State.Pid}}' tod-backend 2>/dev/null || true)
+if [ -n "$CONTAINER_PID" ] && [ "$CONTAINER_PID" != "0" ]; then
+    echo "⚠️  Killing remaining container process (PID: $CONTAINER_PID)"
+    sudo kill -9 $CONTAINER_PID 2>/dev/null || true
+    sleep 1
+fi
+sudo docker rm -f tod-backend 2>/dev/null || true
+
+# Start container
+sudo docker-compose up -d
 
 echo ""
 echo "Status: docker-compose ps"
