@@ -7,11 +7,5 @@ README.md
 .env.local
 .vscode
 *.md
-src
-public
-package.json
-package-lock.json
-tsconfig.*
-vite.config.ts
-eslint.config.js
-index.html
+dist
+.DS_Store
