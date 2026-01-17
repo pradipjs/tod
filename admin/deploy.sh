@@ -10,16 +10,25 @@ echo ""
 
 # Force stop and remove existing container
 echo "🗑️  Cleaning up existing container..."
-docker stop tod-admin 2>/dev/null || true
-docker rm -f tod-admin 2>/dev/null || true
-docker-compose down --remove-orphans 2>/dev/null || true
 
-# Kill any process using port 3000
+# Get container PID and kill process
+CONTAINER_PID=$(sudo docker inspect --format '{{.State.Pid}}' tod-admin 2>/dev/null || true)
+if [ -n "$CONTAINER_PID" ] && [ "$CONTAINER_PID" != "0" ]; then
+    echo "⚠️  Killing container process (PID: $CONTAINER_PID)"
+    sudo kill -9 $CONTAINER_PID 2>/dev/null || true
+    sleep 1
+fi
+
+# Remove container and cleanup
+sudo docker rm -f tod-admin 2>/dev/null || true
+sudo docker-compose down --remove-orphans 2>/dev/null || true
+
+# Kill any remaining process using port 3000
 PORT=${PORT:-3000}
-PID=$(lsof -ti:$PORT 2>/dev/null || true)
+PID=$(sudo lsof -ti:$PORT 2>/dev/null || true)
 if [ -n "$PID" ]; then
     echo "⚠️  Killing process on port $PORT (PID: $PID)"
-    kill -9 $PID 2>/dev/null || true
+    sudo kill -9 $PID 2>/dev/null || true
     sleep 1
 fi
 
