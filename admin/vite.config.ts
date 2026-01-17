@@ -21,7 +21,5 @@ export default defineConfig({
   },
   esbuild: {
     logOverride: { 'this-is-undefined-in-esm': 'silent' },
-    // Use single core for low-resource servers
-    loader: { '.js': 'jsx', '.ts': 'tsx' },
   },
 })
