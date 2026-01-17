@@ -26,7 +26,7 @@ func Initialize(cfg *config.Config) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	log.Info().Str("driver", cfg.DBDriver).Msg("Database connection established")
+	log.Info().Msg("Database connection established")
 
 	return db, nil
 }
