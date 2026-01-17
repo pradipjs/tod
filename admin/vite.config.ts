@@ -12,14 +12,9 @@ export default defineConfig({
           vendor: ['react', 'react-dom', 'react-router-dom'],
         },
       },
-      // Limit parallel processing
-      maxParallelFileOps: 1,
     },
     minify: 'esbuild',
     target: 'esnext',
     sourcemap: false,
-  },
-  esbuild: {
-    logOverride: { 'this-is-undefined-in-esm': 'silent' },
   },
 })

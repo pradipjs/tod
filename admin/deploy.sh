@@ -1,28 +1,29 @@
 #!/bin/bash
 
-# Deploy admin on server
-# Run this script directly on the server
-# Builds the app and deploys with Docker
+# Deploy admin with Docker
+# Run this script on the server after syncing files
 
 set -e
 
-echo "🏗️  Building admin app..."
-npm install
-npm run build
-
-if [ ! -d "dist" ]; then
-    echo "❌ Build failed - dist/ folder not found"
-    exit 1
-fi
-
-echo "📦 Build complete! Size: $(du -sh dist | cut -f1)"
+echo "🐳 Building and deploying with Docker..."
 echo ""
 
-echo "🐳 Building and starting Docker container..."
+# Stop existing container
 docker-compose down 2>/dev/null || true
-docker-compose up -d --build
+
+# Build with BuildKit for faster builds and better caching
+export DOCKER_BUILDKIT=1
+export COMPOSE_DOCKER_CLI_BUILD=1
+
+echo "🏗️  Building Docker image..."
+docker-compose build --progress=plain
+
+echo ""
+echo "🚀 Starting container..."
+docker-compose up -d
 
 echo ""
 echo "✅ Deployment complete!"
-echo "Check status: docker-compose ps"
-echo "View logs: docker-compose logs -f"
+echo ""
+echo "Status: docker-compose ps"
+echo "Logs:   docker-compose logs -f"
