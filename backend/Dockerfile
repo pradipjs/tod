@@ -16,8 +16,9 @@ RUN go mod download
 COPY . .
 
 # Build the application with CGO enabled for SQLite
-# Use sqlite_omit_load_extension to avoid dynamic loading issues on Alpine
-RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -ldflags="-s -w" -tags "sqlite_omit_load_extension" -o main ./cmd/api
+# Set _FILE_OFFSET_BITS=64 for musl compatibility with go-sqlite3
+ENV CGO_CFLAGS="-D_LARGEFILE64_SOURCE"
+RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -ldflags="-s -w" -o main ./cmd/api
 
 # Final stage
 FROM alpine:3.19
