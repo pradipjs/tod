@@ -10,3 +10,21 @@
 .vscode/
 tmp/
 data/
+
+# Test files
+*_test.go
+testdata/
+
+# Build artifacts
+main
+*.exe
+*.out
+
+# Documentation
+README.md
+docs/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+docker-compose.yml

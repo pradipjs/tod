@@ -9,8 +9,9 @@ WORKDIR /app
 # Copy go mod files
 COPY go.mod go.sum ./
 
-# Download dependencies
-RUN go mod download
+# Download dependencies with cache mount
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 # Copy source code
 COPY . .
@@ -18,7 +19,9 @@ COPY . .
 # Build the application with CGO enabled for SQLite
 # Set _FILE_OFFSET_BITS=64 for musl compatibility with go-sqlite3
 ENV CGO_CFLAGS="-D_LARGEFILE64_SOURCE"
-RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -ldflags="-s -w" -o main ./cmd/api
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -ldflags="-s -w" -o main ./cmd/api
 
 # Final stage
 FROM alpine:3.19
