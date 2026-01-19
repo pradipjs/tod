@@ -18,26 +18,22 @@ func NewTaskRepository(db *gorm.DB) *TaskRepository {
 }
 
 // TaskFilter contains filter options for querying tasks.
-// Supports multiple values for categories, age groups, and languages.
+// Supports multiple values for categories, types, and languages.
 type TaskFilter struct {
-	CategoryID      string     // Filter by single category ID
-	CategoryIDs     []string   // Filter by multiple category IDs
-	Type            string     // Filter by type (truth/dare)
-	Types           []string   // Filter by multiple types
-	AgeGroup        string     // Filter by single age group (kids/teen/adults)
-	AgeGroups       []string   // Filter by multiple age groups
-	MinAge          *int       // Filter by minimum age (tasks with min_age <= this value)
-	Languages       []string   // Filter tasks that have text in these languages
-	RequiresConsent *bool      // Filter by consent requirement
-	IsActive        *bool      // Filter by active status
-	ExcludeIDs      []string   // Exclude specific task IDs (for rotation)
-	FromDate        *time.Time // Filter tasks created after this date
-	ToDate          *time.Time // Filter tasks created before this date
-	SortBy          string     // Sort field (created_at, updated_at, etc.)
-	SortOrder       string     // Sort order (asc, desc)
-	Limit           int        // Limit results
-	Offset          int        // Offset for pagination
-	Random          bool       // Randomize results
+	CategoryID  string     // Filter by single category ID
+	CategoryIDs []string   // Filter by multiple category IDs
+	Type        string     // Filter by type (truth/dare)
+	Types       []string   // Filter by multiple types
+	Language    string     // Filter by single language code
+	Languages   []string   // Filter by multiple language codes
+	ExcludeIDs  []string   // Exclude specific task IDs (for rotation)
+	FromDate    *time.Time // Filter tasks created after this date
+	ToDate      *time.Time // Filter tasks created before this date
+	SortBy      string     // Sort field (created_at, updated_at, etc.)
+	SortOrder   string     // Sort order (asc, desc)
+	Limit       int        // Limit results
+	Offset      int        // Offset for pagination
+	Random      bool       // Randomize results
 }
 
 // FindAll retrieves tasks with optional filters.
@@ -64,46 +60,12 @@ func (r *TaskRepository) FindAll(filter *TaskFilter) ([]models.Task, int64, erro
 			query = query.Where("type IN ?", filter.Types)
 		}
 
-		// Age group filters - convert to min_age range
-		if filter.AgeGroup != "" {
-			maxAge := models.GetMaxAgeForGroup(filter.AgeGroup)
-			query = query.Where("min_age <= ?", maxAge)
+		// Language filters
+		if filter.Language != "" {
+			query = query.Where("language = ?", filter.Language)
 		}
-		if len(filter.AgeGroups) > 0 {
-			// Find the maximum max_age from all selected groups
-			maxAge := 0
-			for _, group := range filter.AgeGroups {
-				groupMaxAge := models.GetMaxAgeForGroup(group)
-				if groupMaxAge > maxAge {
-					maxAge = groupMaxAge
-				}
-			}
-			query = query.Where("min_age <= ?", maxAge)
-		}
-
-		// Direct min_age filter (takes precedence)
-		if filter.MinAge != nil {
-			query = query.Where("min_age <= ?", *filter.MinAge)
-		}
-
-		// Language filter - check if task has text in any of the requested languages
-		// Note: SQLite JSON extraction varies; this works for tasks that have the language key
 		if len(filter.Languages) > 0 {
-			// For SQLite: json_extract(text, '$.en') IS NOT NULL
-			// We check if at least one of the requested languages exists
-			langConditions := r.db.Where("1 = 0") // Start with false
-			for _, lang := range filter.Languages {
-				langConditions = langConditions.Or("json_extract(text, ?) IS NOT NULL", "$."+lang)
-			}
-			query = query.Where(langConditions)
-		}
-
-		if filter.RequiresConsent != nil {
-			query = query.Where("requires_consent = ?", *filter.RequiresConsent)
-		}
-
-		if filter.IsActive != nil {
-			query = query.Where("is_active = ?", *filter.IsActive)
+			query = query.Where("language IN ?", filter.Languages)
 		}
 
 		if len(filter.ExcludeIDs) > 0 {
@@ -132,7 +94,7 @@ func (r *TaskRepository) FindAll(filter *TaskFilter) ([]models.Task, int64, erro
 		validSortFields := map[string]bool{
 			"created_at": true,
 			"updated_at": true,
-			"min_age":    true,
+			"language":   true,
 			"type":       true,
 		}
 		if validSortFields[filter.SortBy] {
@@ -206,18 +168,11 @@ func (r *TaskRepository) CountByFilters(filter *TaskFilter) (truthCount, dareCou
 			if len(filter.CategoryIDs) > 0 {
 				query = query.Where("category_id IN ?", filter.CategoryIDs)
 			}
-			if filter.AgeGroup != "" {
-				maxAge := models.GetMaxAgeForGroup(filter.AgeGroup)
-				query = query.Where("min_age <= ?", maxAge)
+			if filter.Language != "" {
+				query = query.Where("language = ?", filter.Language)
 			}
-			if filter.MinAge != nil {
-				query = query.Where("min_age <= ?", *filter.MinAge)
-			}
-			if filter.RequiresConsent != nil {
-				query = query.Where("requires_consent = ?", *filter.RequiresConsent)
-			}
-			if filter.IsActive != nil {
-				query = query.Where("is_active = ?", *filter.IsActive)
+			if len(filter.Languages) > 0 {
+				query = query.Where("language IN ?", filter.Languages)
 			}
 			if len(filter.ExcludeIDs) > 0 {
 				query = query.Where("id NOT IN ?", filter.ExcludeIDs)
@@ -337,24 +292,12 @@ func (r *TaskRepository) Count(filter *TaskFilter) (int64, error) {
 			query = query.Where("type IN ?", filter.Types)
 		}
 
-		// Age group filters
-		if filter.AgeGroup != "" {
-			maxAge := models.GetMaxAgeForGroup(filter.AgeGroup)
-			query = query.Where("min_age <= ?", maxAge)
+		// Language filters
+		if filter.Language != "" {
+			query = query.Where("language = ?", filter.Language)
 		}
-		if len(filter.AgeGroups) > 0 {
-			maxAge := 0
-			for _, group := range filter.AgeGroups {
-				groupMaxAge := models.GetMaxAgeForGroup(group)
-				if groupMaxAge > maxAge {
-					maxAge = groupMaxAge
-				}
-			}
-			query = query.Where("min_age <= ?", maxAge)
-		}
-
-		if filter.IsActive != nil {
-			query = query.Where("is_active = ?", *filter.IsActive)
+		if len(filter.Languages) > 0 {
+			query = query.Where("language IN ?", filter.Languages)
 		}
 
 		// Date range filters

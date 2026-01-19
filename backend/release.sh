@@ -18,7 +18,6 @@ fi
 IMAGE_NAME="tod-backend"
 CONTAINER_NAME="tod-backend"
 PORT="${PORT:-8080}"
-DATA_DIR="${DATA_DIR:-$(pwd)/data}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -35,10 +34,6 @@ cd "$(dirname "$0")"
 echo -e "${YELLOW}Pulling latest code...${NC}"
 git pull origin main || git pull origin master || echo "Git pull skipped"
 
-# Create data directory if it doesn't exist
-echo -e "${YELLOW}Creating data directory...${NC}"
-mkdir -p "$DATA_DIR"
-
 # Stop and remove existing container if running
 echo -e "${YELLOW}Stopping existing container...${NC}"
 docker stop "$CONTAINER_NAME" 2>/dev/null || true
@@ -54,7 +49,6 @@ docker run -d \
     --name "$CONTAINER_NAME" \
     --restart unless-stopped \
     -p "$PORT:8080" \
-    -v "$DATA_DIR:/data" \
     -e APP_ENV="${APP_ENV:-production}" \
     -e DB_PATH="/data/truthordare.db" \
     -e CORS_ORIGINS="${CORS_ORIGINS:-http://localhost:3000}" \
@@ -73,7 +67,6 @@ sleep 5
 if docker ps | grep -q "$CONTAINER_NAME"; then
     echo -e "${GREEN}✓ Container is running${NC}"
     echo -e "${GREEN}✓ Backend is available at http://localhost:$PORT${NC}"
-    echo -e "${GREEN}✓ Database is stored at $DATA_DIR/truthordare.db${NC}"
     docker logs --tail 10 "$CONTAINER_NAME"
 else
     echo -e "${RED}✗ Container failed to start${NC}"

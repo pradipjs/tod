@@ -1,7 +1,6 @@
 import {
     Add as AddIcon,
-    Delete as DeleteIcon,
-    Edit as EditIcon,
+    DragIndicator as DragIcon,
     AutoAwesome as GenerateIcon,
 } from '@mui/icons-material';
 import {
@@ -17,7 +16,6 @@ import {
     DialogTitle,
     FormControl,
     FormControlLabel,
-    IconButton,
     InputLabel,
     MenuItem,
     Select,
@@ -33,8 +31,8 @@ import {
     Typography,
 } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { createCategory, deleteCategory, generateCategoryLabels, getCategories, updateCategory } from '../api';
+import { useCallback, useState } from 'react';
+import { createCategory, generateCategoryLabels, getCategories, reorderCategories, updateCategory } from '../api';
 import EmojiPicker from '../components/EmojiPicker';
 import { AGE_GROUPS, LANGUAGES, LANGUAGE_NAMES, type AgeGroup, type Category, type CreateCategoryDto } from '../types';
 
@@ -47,17 +45,44 @@ const INITIAL_FORM: CreateCategoryDto = {
     sort_order: 0,
 };
 
+// Validation errors type
+interface CategoryFormErrors {
+    emoji?: string;
+    age_group?: string;
+    label_en?: string;
+}
+
 export default function CategoriesPage() {
     const queryClient = useQueryClient();
     const [dialogOpen, setDialogOpen] = useState(false);
-    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
     const [form, setForm] = useState<CreateCategoryDto>(INITIAL_FORM);
+    const [formErrors, setFormErrors] = useState<CategoryFormErrors>({});
     const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
         open: false,
         message: '',
         severity: 'success',
     });
+    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+    const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+    // Validate category form
+    const validateCategoryForm = (): boolean => {
+        const errors: CategoryFormErrors = {};
+
+        if (!form.emoji || form.emoji.trim() === '') {
+            errors.emoji = 'Emoji is required';
+        }
+        if (!form.age_group) {
+            errors.age_group = 'Age group is required';
+        }
+        if (!form.label.en || form.label.en.trim() === '') {
+            errors.label_en = 'English label is required';
+        }
+
+        setFormErrors(errors);
+        return Object.keys(errors).length === 0;
+    };
 
     const { data: categories, isLoading, error } = useQuery({
         queryKey: ['categories'],
@@ -88,15 +113,14 @@ export default function CategoriesPage() {
         },
     });
 
-    const deleteMutation = useMutation({
-        mutationFn: deleteCategory,
+    const reorderMutation = useMutation({
+        mutationFn: reorderCategories,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['categories'] });
-            setDeleteDialogOpen(false);
-            setSnackbar({ open: true, message: 'Category deleted successfully', severity: 'success' });
+            setSnackbar({ open: true, message: 'Categories reordered', severity: 'success' });
         },
         onError: () => {
-            setSnackbar({ open: true, message: 'Failed to delete category', severity: 'error' });
+            setSnackbar({ open: true, message: 'Failed to reorder categories', severity: 'error' });
         },
     });
 
@@ -118,12 +142,16 @@ export default function CategoriesPage() {
 
     const handleCreate = () => {
         setSelectedCategory(null);
-        setForm(INITIAL_FORM);
+        setFormErrors({});
+        // Set sort_order to be after the last category
+        const maxOrder = categories?.reduce((max, cat) => Math.max(max, cat.sort_order), 0) || 0;
+        setForm({ ...INITIAL_FORM, sort_order: maxOrder + 1 });
         setDialogOpen(true);
     };
 
     const handleEdit = (category: Category) => {
         setSelectedCategory(category);
+        setFormErrors({});
         setForm({
             emoji: category.emoji,
             age_group: category.age_group,
@@ -135,22 +163,14 @@ export default function CategoriesPage() {
         setDialogOpen(true);
     };
 
-    const handleDelete = (category: Category) => {
-        setSelectedCategory(category);
-        setDeleteDialogOpen(true);
-    };
-
     const handleSubmit = () => {
+        if (!validateCategoryForm()) {
+            return;
+        }
         if (selectedCategory) {
             updateMutation.mutate({ id: selectedCategory.id, data: form });
         } else {
             createMutation.mutate(form);
-        }
-    };
-
-    const handleConfirmDelete = () => {
-        if (selectedCategory) {
-            deleteMutation.mutate(selectedCategory.id);
         }
     };
 
@@ -160,6 +180,46 @@ export default function CategoriesPage() {
             label: { ...prev.label, [lang]: value },
         }));
     };
+
+    // Drag and drop handlers
+    const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
+        setDraggedIndex(index);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', index.toString());
+    }, []);
+
+    const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        setDragOverIndex(index);
+    }, []);
+
+    const handleDrop = useCallback((e: React.DragEvent, dropIndex: number) => {
+        e.preventDefault();
+        setDragOverIndex(null);
+        if (draggedIndex === null || draggedIndex === dropIndex || !categories) {
+            setDraggedIndex(null);
+            return;
+        }
+
+        const newCategories = [...categories];
+        const [draggedItem] = newCategories.splice(draggedIndex, 1);
+        newCategories.splice(dropIndex, 0, draggedItem);
+
+        // Create reorder items with new sort orders
+        const items = newCategories.map((cat, idx) => ({
+            id: cat.id,
+            sort_order: idx + 1,
+        }));
+
+        reorderMutation.mutate(items);
+        setDraggedIndex(null);
+    }, [draggedIndex, categories, reorderMutation]);
+
+    const handleDragEnd = useCallback(() => {
+        setDraggedIndex(null);
+        setDragOverIndex(null);
+    }, []);
 
     if (isLoading) {
         return (
@@ -175,40 +235,66 @@ export default function CategoriesPage() {
 
     return (
         <Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                <Box>
-                    <Typography variant="h4" fontWeight={700}>
-                        Categories
-                    </Typography>
-                    <Typography color="text.secondary">Manage truth or dare categories</Typography>
-                </Box>
-                <Button variant="contained" startIcon={<AddIcon />} onClick={handleCreate}>
-                    Add Category
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h5" fontWeight={700}>
+                    Categories {categories && <Chip label={categories.length} size="small" sx={{ ml: 1, height: 22 }} />}
+                </Typography>
+                <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={handleCreate}>
+                    Add
                 </Button>
             </Box>
 
             <Card>
                 <TableContainer>
-                    <Table>
+                    <Table size="small">
                         <TableHead>
                             <TableRow>
-                                <TableCell>Emoji</TableCell>
-                                <TableCell>Label (EN)</TableCell>
-                                <TableCell>Age Group</TableCell>
-                                <TableCell>Consent</TableCell>
-                                <TableCell>Status</TableCell>
-                                <TableCell>Order</TableCell>
-                                <TableCell align="right">Actions</TableCell>
+                                <TableCell sx={{ py: 1, width: 40 }}></TableCell>
+                                <TableCell sx={{ py: 1 }}>Emoji</TableCell>
+                                <TableCell sx={{ py: 1 }}>Label</TableCell>
+                                <TableCell sx={{ py: 1 }}>Age</TableCell>
+                                <TableCell sx={{ py: 1 }}>Consent</TableCell>
+                                <TableCell sx={{ py: 1 }}>Status</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {categories?.map((category) => (
-                                <TableRow key={category.id}>
-                                    <TableCell>
-                                        <Typography variant="h5">{category.emoji}</Typography>
+                            {categories?.map((category, index) => (
+                                <TableRow
+                                    key={category.id}
+                                    hover
+                                    draggable
+                                    onDragStart={(e) => handleDragStart(e, index)}
+                                    onDragOver={(e) => handleDragOver(e, index)}
+                                    onDragLeave={() => setDragOverIndex(null)}
+                                    onDrop={(e) => handleDrop(e, index)}
+                                    onDragEnd={handleDragEnd}
+                                    sx={{
+                                        cursor: 'grab',
+                                        opacity: draggedIndex === index ? 0.5 : 1,
+                                        '&:active': { cursor: 'grabbing' },
+                                        ...(dragOverIndex === index && draggedIndex !== index && {
+                                            borderTop: '2px solid',
+                                            borderTopColor: 'primary.main',
+                                            backgroundColor: 'action.hover',
+                                        }),
+                                    }}
+                                >
+                                    <TableCell sx={{ py: 0.5, width: 40 }}>
+                                        <DragIcon sx={{ color: 'text.secondary', fontSize: 18, verticalAlign: 'middle' }} />
                                     </TableCell>
-                                    <TableCell>{category.label.en || '-'}</TableCell>
-                                    <TableCell>
+                                    <TableCell
+                                        sx={{ py: 0.5, cursor: 'pointer' }}
+                                        onClick={() => handleEdit(category)}
+                                    >
+                                        <Typography fontSize="1.2rem">{category.emoji}</Typography>
+                                    </TableCell>
+                                    <TableCell
+                                        sx={{ py: 0.5, cursor: 'pointer' }}
+                                        onClick={() => handleEdit(category)}
+                                    >
+                                        {category.label.en || '-'}
+                                    </TableCell>
+                                    <TableCell sx={{ py: 0.5 }}>
                                         <Chip
                                             label={category.age_group}
                                             size="small"
@@ -219,37 +305,31 @@ export default function CategoriesPage() {
                                                         ? 'warning'
                                                         : 'error'
                                             }
+                                            sx={{ height: 20, fontSize: '0.7rem' }}
                                         />
                                     </TableCell>
-                                    <TableCell>
+                                    <TableCell sx={{ py: 0.5 }}>
                                         <Chip
                                             label={category.requires_consent ? 'Yes' : 'No'}
                                             size="small"
                                             variant="outlined"
+                                            sx={{ height: 20, fontSize: '0.7rem' }}
                                         />
                                     </TableCell>
-                                    <TableCell>
+                                    <TableCell sx={{ py: 0.5 }}>
                                         <Chip
                                             label={category.is_active ? 'Active' : 'Inactive'}
                                             size="small"
                                             color={category.is_active ? 'success' : 'default'}
+                                            sx={{ height: 20, fontSize: '0.7rem' }}
                                         />
-                                    </TableCell>
-                                    <TableCell>{category.sort_order}</TableCell>
-                                    <TableCell align="right">
-                                        <IconButton size="small" onClick={() => handleEdit(category)}>
-                                            <EditIcon fontSize="small" />
-                                        </IconButton>
-                                        <IconButton size="small" color="error" onClick={() => handleDelete(category)}>
-                                            <DeleteIcon fontSize="small" />
-                                        </IconButton>
                                     </TableCell>
                                 </TableRow>
                             ))}
                             {categories?.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={7} align="center">
-                                        <Typography color="text.secondary" sx={{ py: 4 }}>
+                                    <TableCell colSpan={6} align="center">
+                                        <Typography color="text.secondary" sx={{ py: 2 }}>
                                             No categories found. Create your first category!
                                         </Typography>
                                     </TableCell>
@@ -265,17 +345,30 @@ export default function CategoriesPage() {
                 <DialogTitle>{selectedCategory ? 'Edit Category' : 'Create Category'}</DialogTitle>
                 <DialogContent>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-                        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                            <EmojiPicker
-                                value={form.emoji}
-                                onChange={(emoji) => setForm({ ...form, emoji })}
-                            />
-                            <FormControl size="small" sx={{ minWidth: 100 }}>
-                                <InputLabel>Age Group</InputLabel>
+                        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+                            <Box>
+                                <EmojiPicker
+                                    value={form.emoji}
+                                    onChange={(emoji) => {
+                                        setForm({ ...form, emoji });
+                                        if (formErrors.emoji) setFormErrors({ ...formErrors, emoji: undefined });
+                                    }}
+                                />
+                                {formErrors.emoji && (
+                                    <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
+                                        {formErrors.emoji}
+                                    </Typography>
+                                )}
+                            </Box>
+                            <FormControl size="small" sx={{ minWidth: 120 }} error={!!formErrors.age_group}>
+                                <InputLabel>Age Group *</InputLabel>
                                 <Select
                                     value={form.age_group}
-                                    label="Age Group"
-                                    onChange={(e) => setForm({ ...form, age_group: e.target.value as AgeGroup })}
+                                    label="Age Group *"
+                                    onChange={(e) => {
+                                        setForm({ ...form, age_group: e.target.value as AgeGroup });
+                                        if (formErrors.age_group) setFormErrors({ ...formErrors, age_group: undefined });
+                                    }}
                                 >
                                     {AGE_GROUPS.map((group) => (
                                         <MenuItem key={group} value={group}>
@@ -283,15 +376,10 @@ export default function CategoriesPage() {
                                         </MenuItem>
                                     ))}
                                 </Select>
+                                {formErrors.age_group && (
+                                    <Typography variant="caption" color="error">{formErrors.age_group}</Typography>
+                                )}
                             </FormControl>
-                            <TextField
-                                label="Sort Order"
-                                type="number"
-                                size="small"
-                                value={form.sort_order}
-                                onChange={(e) => setForm({ ...form, sort_order: parseInt(e.target.value) || 0 })}
-                                sx={{ width: 90 }}
-                            />
                             <FormControlLabel
                                 control={
                                     <Switch
@@ -300,7 +388,7 @@ export default function CategoriesPage() {
                                         size="small"
                                     />
                                 }
-                                label="Consent"
+                                label="Consent Required"
                             />
                             <FormControlLabel
                                 control={
@@ -314,7 +402,7 @@ export default function CategoriesPage() {
                             />
                         </Box>
 
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Typography variant="subtitle2">
                                 Labels (multilingual)
                             </Typography>
@@ -336,14 +424,23 @@ export default function CategoriesPage() {
                                 Generate
                             </Button>
                         </Box>
+
                         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2 }}>
                             {LANGUAGES.map((lang) => (
                                 <TextField
                                     key={lang}
-                                    label={`Label (${LANGUAGE_NAMES[lang]})`}
+                                    label={`Label (${LANGUAGE_NAMES[lang]})${lang === 'en' ? ' *' : ''}`}
                                     value={form.label[lang] || ''}
-                                    onChange={(e) => updateLabel(lang, e.target.value)}
+                                    onChange={(e) => {
+                                        updateLabel(lang, e.target.value);
+                                        if (lang === 'en' && formErrors.label_en) {
+                                            setFormErrors({ ...formErrors, label_en: undefined });
+                                        }
+                                    }}
                                     size="small"
+                                    error={lang === 'en' && !!formErrors.label_en}
+                                    helperText={lang === 'en' ? formErrors.label_en : undefined}
+                                    required={lang === 'en'}
                                 />
                             ))}
                         </Box>
@@ -363,27 +460,6 @@ export default function CategoriesPage() {
                         ) : (
                             'Create'
                         )}
-                    </Button>
-                </DialogActions>
-            </Dialog>
-
-            {/* Delete Confirmation Dialog */}
-            <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-                <DialogTitle>Delete Category</DialogTitle>
-                <DialogContent>
-                    <Typography>
-                        Are you sure you want to delete "{selectedCategory?.label.en}"? This action cannot be undone.
-                    </Typography>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-                    <Button
-                        variant="contained"
-                        color="error"
-                        onClick={handleConfirmDelete}
-                        disabled={deleteMutation.isPending}
-                    >
-                        {deleteMutation.isPending ? <CircularProgress size={20} /> : 'Delete'}
                     </Button>
                 </DialogActions>
             </Dialog>

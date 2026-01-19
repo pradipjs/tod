@@ -10,11 +10,7 @@ services:
     ports:
       - "${PORT:-8080}:8080"
     volumes:
-      # Mount host directory to container /data
-      # Host path: ${DATA_DIR} (e.g., /safe/db)
-      # Container path: /data
-      # Database file: /data/truthordare.db (in container) = ${DATA_DIR}/truthordare.db (on host)
-      - ${DATA_DIR:-./data}:/data
+      - /safe/db:/data
     environment:
       - APP_ENV=${APP_ENV:-production}
       - PORT=8080

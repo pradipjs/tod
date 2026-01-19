@@ -99,8 +99,18 @@ func (h *GenerateCategoryLabelsHandler) GenerateCategoryLabels(c *gin.Context) {
 		return
 	}
 
-	// Load and prepare the prompt
-	prompt, err := h.promptLoader.LoadAndReplace(
+	// Load system prompt
+	systemPrompt, err := h.promptLoader.Load("category_labels_system")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "internal_error",
+			Message: "Failed to load system prompt: " + err.Error(),
+		})
+		return
+	}
+
+	// Load and prepare the user prompt
+	userPrompt, err := h.promptLoader.LoadAndReplace(
 		"category_labels",
 		prompts.P("CATEGORY_NAME", req.CategoryName),
 		prompts.P("LANGUAGES", strings.Join(languages, ", ")),
@@ -113,15 +123,16 @@ func (h *GenerateCategoryLabelsHandler) GenerateCategoryLabels(c *gin.Context) {
 		return
 	}
 
-	// Call AI to generate labels
+	// Call AI to generate labels with proper system/user message structure
 	messages := []ai.Message{
-		{Role: "user", Content: prompt},
+		{Role: "system", Content: systemPrompt},
+		{Role: "user", Content: userPrompt},
 	}
 
 	var labels models.MultilingualText
 	err = h.aiClient.CompleteJSON(messages, &labels,
 		ai.WithTemperature(0.3), // Lower temperature for more consistent translations
-		ai.WithMaxTokens(500),
+		ai.WithMaxTokens(1000),  // Increased to handle reasoning models
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.ErrorResponse{

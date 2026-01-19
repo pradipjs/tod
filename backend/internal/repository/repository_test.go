@@ -155,25 +155,6 @@ func TestCategoryRepository_Update(t *testing.T) {
 	assert.Equal(t, "✅", found.Emoji)
 }
 
-func TestCategoryRepository_Delete(t *testing.T) {
-	db := setupTestDB(t)
-	repo := repository.NewCategoryRepository(db)
-
-	category := &models.Category{
-		Label:    models.MultilingualText{"en": "To Delete"},
-		Emoji:    "🗑️",
-		AgeGroup: models.AgeGroupKids,
-		IsActive: true,
-	}
-	repo.Create(category)
-
-	err := repo.Delete(category.ID)
-	require.NoError(t, err)
-
-	_, err = repo.FindByID(category.ID)
-	assert.Error(t, err)
-}
-
 func TestCategoryRepository_Count(t *testing.T) {
 	db := setupTestDB(t)
 	repo := repository.NewCategoryRepository(db)
@@ -225,14 +206,10 @@ func TestTaskRepository_Create(t *testing.T) {
 
 	taskRepo := repository.NewTaskRepository(db)
 	task := &models.Task{
-		Text: models.MultilingualText{
-			"en": "What is your name?",
-		},
-		Type:            models.TaskTypeTruth,
-		CategoryID:      category.ID,
-		MinAge:          0,
-		RequiresConsent: false,
-		IsActive:        true,
+		Text:       "What is your name?",
+		Language:   "en",
+		Type:       models.TaskTypeTruth,
+		CategoryID: category.ID,
 	}
 
 	err := taskRepo.Create(task)
@@ -249,10 +226,10 @@ func TestTaskRepository_FindByID(t *testing.T) {
 
 	taskRepo := repository.NewTaskRepository(db)
 	task := &models.Task{
-		Text:       models.MultilingualText{"en": "Test task"},
+		Text:       "Test task",
+		Language:   "en",
 		Type:       models.TaskTypeDare,
 		CategoryID: category.ID,
-		IsActive:   true,
 	}
 	taskRepo.Create(task)
 
@@ -278,18 +255,15 @@ func TestTaskRepository_FindAll(t *testing.T) {
 
 	taskRepo := repository.NewTaskRepository(db)
 
-	task1 := &models.Task{Text: models.MultilingualText{"en": "Truth 1"}, Type: models.TaskTypeTruth, CategoryID: category.ID, MinAge: 0}
-	task2 := &models.Task{Text: models.MultilingualText{"en": "Truth 2"}, Type: models.TaskTypeTruth, CategoryID: category.ID, MinAge: 13}
-	task3 := &models.Task{Text: models.MultilingualText{"en": "Dare 1"}, Type: models.TaskTypeDare, CategoryID: category.ID, MinAge: 0}
-	task4 := &models.Task{Text: models.MultilingualText{"en": "Dare 2"}, Type: models.TaskTypeDare, CategoryID: category.ID, MinAge: 18}
+	task1 := &models.Task{Text: "Truth 1", Language: "en", Type: models.TaskTypeTruth, CategoryID: category.ID}
+	task2 := &models.Task{Text: "Truth 2", Language: "en", Type: models.TaskTypeTruth, CategoryID: category.ID}
+	task3 := &models.Task{Text: "Dare 1", Language: "en", Type: models.TaskTypeDare, CategoryID: category.ID}
+	task4 := &models.Task{Text: "Dare 2", Language: "en", Type: models.TaskTypeDare, CategoryID: category.ID}
 
 	taskRepo.Create(task1)
 	taskRepo.Create(task2)
 	taskRepo.Create(task3)
 	taskRepo.Create(task4)
-
-	// Set task4 to inactive (bypasses GORM default)
-	db.Model(task4).Update("is_active", false)
 
 	t.Run("find all without filter", func(t *testing.T) {
 		result, total, err := taskRepo.FindAll(nil)
@@ -314,24 +288,6 @@ func TestTaskRepository_FindAll(t *testing.T) {
 		assert.Equal(t, 4, len(result))
 	})
 
-	t.Run("filter by active status", func(t *testing.T) {
-		active := true
-		result, _, err := taskRepo.FindAll(&repository.TaskFilter{
-			IsActive: &active,
-		})
-		require.NoError(t, err)
-		assert.Equal(t, 3, len(result))
-	})
-
-	t.Run("filter by min age", func(t *testing.T) {
-		minAge := 13
-		result, _, err := taskRepo.FindAll(&repository.TaskFilter{
-			MinAge: &minAge,
-		})
-		require.NoError(t, err)
-		assert.Equal(t, 3, len(result))
-	})
-
 	t.Run("pagination", func(t *testing.T) {
 		result, total, err := taskRepo.FindAll(&repository.TaskFilter{
 			Limit:  2,
@@ -340,15 +296,6 @@ func TestTaskRepository_FindAll(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 2, len(result))
 		assert.Equal(t, int64(4), total)
-	})
-
-	t.Run("sort by min_age ascending", func(t *testing.T) {
-		result, _, err := taskRepo.FindAll(&repository.TaskFilter{
-			SortBy:    "min_age",
-			SortOrder: "asc",
-		})
-		require.NoError(t, err)
-		assert.Equal(t, 0, result[0].MinAge)
 	})
 }
 
@@ -363,10 +310,10 @@ func TestTaskRepository_FindRandom(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		taskRepo.Create(&models.Task{
-			Text:       models.MultilingualText{"en": "Task"},
+			Text:       "Task",
+			Language:   "en",
 			Type:       models.TaskTypeTruth,
 			CategoryID: category.ID,
-			IsActive:   true,
 		})
 	}
 
@@ -398,18 +345,18 @@ func TestTaskRepository_CountByFilters(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		taskRepo.Create(&models.Task{
-			Text:       models.MultilingualText{"en": "Truth"},
+			Text:       "Truth",
+			Language:   "en",
 			Type:       models.TaskTypeTruth,
 			CategoryID: category.ID,
-			IsActive:   true,
 		})
 	}
 	for i := 0; i < 2; i++ {
 		taskRepo.Create(&models.Task{
-			Text:       models.MultilingualText{"en": "Dare"},
+			Text:       "Dare",
+			Language:   "en",
 			Type:       models.TaskTypeDare,
 			CategoryID: category.ID,
-			IsActive:   true,
 		})
 	}
 
@@ -431,10 +378,10 @@ func TestTaskRepository_DateFilters(t *testing.T) {
 	taskRepo := repository.NewTaskRepository(db)
 
 	task := &models.Task{
-		Text:       models.MultilingualText{"en": "Task"},
+		Text:       "Task",
+		Language:   "en",
 		Type:       models.TaskTypeTruth,
 		CategoryID: category.ID,
-		IsActive:   true,
 	}
 	taskRepo.Create(task)
 
@@ -478,19 +425,19 @@ func TestTaskRepository_Update(t *testing.T) {
 
 	taskRepo := repository.NewTaskRepository(db)
 	task := &models.Task{
-		Text:       models.MultilingualText{"en": "Original"},
+		Text:       "Original",
+		Language:   "en",
 		Type:       models.TaskTypeTruth,
 		CategoryID: category.ID,
-		IsActive:   true,
 	}
 	taskRepo.Create(task)
 
-	task.Text = models.MultilingualText{"en": "Updated"}
+	task.Text = "Updated"
 	err := taskRepo.Update(task)
 	require.NoError(t, err)
 
 	found, _ := taskRepo.FindByID(task.ID)
-	assert.Equal(t, "Updated", found.Text["en"])
+	assert.Equal(t, "Updated", found.Text)
 }
 
 func TestTaskRepository_Delete(t *testing.T) {
@@ -502,10 +449,10 @@ func TestTaskRepository_Delete(t *testing.T) {
 
 	taskRepo := repository.NewTaskRepository(db)
 	task := &models.Task{
-		Text:       models.MultilingualText{"en": "To Delete"},
+		Text:       "To Delete",
+		Language:   "en",
 		Type:       models.TaskTypeTruth,
 		CategoryID: category.ID,
-		IsActive:   true,
 	}
 	taskRepo.Create(task)
 

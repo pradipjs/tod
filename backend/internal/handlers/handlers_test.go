@@ -55,15 +55,10 @@ func seedTestCategory(t *testing.T, db *gorm.DB) *models.Category {
 // seedTestTask creates a test task in the database
 func seedTestTask(t *testing.T, db *gorm.DB, categoryID string, taskType string) *models.Task {
 	task := &models.Task{
-		Text: models.MultilingualText{
-			"en": "Test task text",
-			"hi": "परीक्षण कार्य पाठ",
-		},
-		Type:            taskType,
-		CategoryID:      categoryID,
-		MinAge:          0,
-		RequiresConsent: false,
-		IsActive:        true,
+		Text:       "Test task text",
+		Language:   "en",
+		Type:       taskType,
+		CategoryID: categoryID,
 	}
 	err := db.Create(task).Error
 	require.NoError(t, err, "failed to create test task")
@@ -255,31 +250,6 @@ func TestCategoryHandler_Update(t *testing.T) {
 	})
 }
 
-func TestCategoryHandler_Delete(t *testing.T) {
-	db := setupTestDB(t)
-	router := setupTestRouter()
-
-	category := seedTestCategory(t, db)
-
-	categoryRepo := repository.NewCategoryRepository(db)
-	handler := handlers.NewCategoryHandler(categoryRepo)
-
-	router.DELETE("/categories/:id", handler.Delete)
-
-	t.Run("delete existing category", func(t *testing.T) {
-		req, _ := http.NewRequest("DELETE", "/categories/"+category.ID, nil)
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
-
-		// Handler returns 200 with success message, not 204
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var count int64
-		db.Model(&models.Category{}).Where("id = ?", category.ID).Count(&count)
-		assert.Equal(t, int64(0), count)
-	})
-}
-
 func TestCategoryHandler_Count(t *testing.T) {
 	db := setupTestDB(t)
 	router := setupTestRouter()
@@ -407,13 +377,10 @@ func TestTaskHandler_Create(t *testing.T) {
 
 	t.Run("create valid task", func(t *testing.T) {
 		reqBody := map[string]interface{}{
-			"text": map[string]string{
-				"en": "What is your favorite color?",
-			},
+			"text":        "What is your favorite color?",
+			"language":    "en",
 			"type":        "truth",
 			"category_id": category.ID,
-			"min_age":     0,
-			"intensity":   1,
 		}
 		body, _ := json.Marshal(reqBody)
 
@@ -433,9 +400,8 @@ func TestTaskHandler_Create(t *testing.T) {
 
 	t.Run("create task with non-existent category", func(t *testing.T) {
 		reqBody := map[string]interface{}{
-			"text": map[string]string{
-				"en": "Invalid task",
-			},
+			"text":        "Invalid task",
+			"language":    "en",
 			"type":        "truth",
 			"category_id": "non-existent-category",
 		}
@@ -521,14 +487,14 @@ func TestTaskHandler_Count(t *testing.T) {
 	seedTestTask(t, db, category.ID, models.TaskTypeTruth)
 	seedTestTask(t, db, category.ID, models.TaskTypeDare)
 
-	inactiveTask := &models.Task{
-		Text:       models.MultilingualText{"en": "Inactive"},
+	// Create an additional task for count test
+	additionalTask := &models.Task{
+		Text:       "Additional task",
+		Language:   "en",
 		Type:       models.TaskTypeTruth,
 		CategoryID: category.ID,
 	}
-	db.Create(inactiveTask)
-	// Update to inactive (bypasses GORM default)
-	db.Model(inactiveTask).Update("is_active", false)
+	db.Create(additionalTask)
 
 	categoryRepo := repository.NewCategoryRepository(db)
 	taskRepo := repository.NewTaskRepository(db)
@@ -547,19 +513,6 @@ func TestTaskHandler_Count(t *testing.T) {
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 		assert.Equal(t, int64(4), response["count"])
-	})
-
-	t.Run("count active only", func(t *testing.T) {
-		req, _ := http.NewRequest("GET", "/tasks/count?active=true", nil)
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response map[string]int64
-		err := json.Unmarshal(w.Body.Bytes(), &response)
-		require.NoError(t, err)
-		assert.Equal(t, int64(3), response["count"])
 	})
 
 	t.Run("count by type", func(t *testing.T) {

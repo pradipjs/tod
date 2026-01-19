@@ -192,25 +192,18 @@ func TestCategory_ToResponse(t *testing.T) {
 
 func TestTask_ToResponse(t *testing.T) {
 	task := &models.Task{
-		BaseModel: models.BaseModel{ID: "task-id"},
-		Text: models.MultilingualText{
-			"en": "Test task",
-		},
-		Hint: models.MultilingualText{
-			"en": "Test hint",
-		},
-		Type:            models.TaskTypeTruth,
-		CategoryID:      "cat-id",
-		MinAge:          13,
-		RequiresConsent: false,
-		IsActive:        true,
+		BaseModel:  models.BaseModel{ID: "task-id"},
+		Text:       "Test task",
+		Language:   "en",
+		Type:       models.TaskTypeTruth,
+		CategoryID: "cat-id",
 	}
 
 	response := task.ToResponse()
 
 	assert.Equal(t, "task-id", response.ID)
-	assert.Equal(t, "Test task", response.Text["en"])
-	assert.Equal(t, "Test hint", response.Hint["en"])
+	assert.Equal(t, "Test task", response.Text)
+	assert.Equal(t, "en", response.Language)
 	assert.Equal(t, models.TaskTypeTruth, response.Type)
 	assert.Equal(t, "cat-id", response.CategoryID)
 }

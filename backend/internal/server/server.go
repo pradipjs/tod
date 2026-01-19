@@ -109,8 +109,8 @@ func (s *Server) setupRoutes() {
 				restrictedCategories.GET("/count", categoryHandler.Count)
 				restrictedCategories.GET("/:id", categoryHandler.Get)
 				restrictedCategories.POST("", categoryHandler.Create)
+				restrictedCategories.POST("/reorder", categoryHandler.Reorder)
 				restrictedCategories.PUT("/:id", categoryHandler.Update)
-				restrictedCategories.DELETE("/:id", categoryHandler.Delete)
 			}
 
 			// Task management - Restricted

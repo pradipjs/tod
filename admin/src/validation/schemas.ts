@@ -33,13 +33,8 @@ export type CategoryFormData = z.infer<typeof categoryFormSchema>;
 export const taskFormSchema = z.object({
     category_id: z.string().uuid('Please select a valid category'),
     type: z.enum(taskTypes, { message: 'Please select truth or dare' }),
-    text: multilingualTextSchema,
-    hint: z.object({
-        en: z.string().optional(),
-    }).catchall(z.string().optional()).optional(),
-    min_age: z.number().min(0, 'Minimum age must be 0 or greater').max(99, 'Invalid age'),
-    requires_consent: z.boolean(),
-    is_active: z.boolean(),
+    text: z.string().min(1, 'Task text is required'),
+    language: z.enum(languageCodes, { message: 'Please select a valid language' }),
 });
 
 export type TaskFormData = z.infer<typeof taskFormSchema>;

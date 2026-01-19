@@ -15,7 +15,422 @@
 # Environment:
 #   The script sources .env files from respective directories if they exist.
 #
+#!/bin/bash
+
+# =============================================================================
+# Truth or Dare - Deployment Script
+# =============================================================================
+#
+# This script handles deployment of backend API server and/or admin panel.
+# It prompts for each component and runs the appropriate deployment scripts.
+#
+# Usage:
+#   ./run.sh           # Interactive deployment (prompts for each component)
+#   ./run.sh backend   # Deploy only backend
+#   ./run.sh admin     # Deploy only admin
+#   ./run.sh all       # Deploy both backend and admin
+#
+# Environment:
+#   The script sources .env files from respective directories if they exist.
+#
 # Requirements:
+#   - Go 1.21+ for backend
+#   - Node.js 18+ for admin
+#   - npm for admin dependencies
+#   - Appropriate deployment scripts in each directory
+#
+# =============================================================================
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# Project root directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKEND_DIR="$SCRIPT_DIR/backend"
+ADMIN_DIR="$SCRIPT_DIR/admin"
+
+# Deployment log file
+LOG_DIR="$SCRIPT_DIR/logs"
+LOG_FILE="$LOG_DIR/deployment_$(date +%Y%m%d_%H%M%S).log"
+
+# =============================================================================
+# Helper Functions
+# =============================================================================
+
+setup_logging() {
+    mkdir -p "$LOG_DIR"
+    touch "$LOG_FILE"
+    log_info "Deployment log: $LOG_FILE"
+}
+
+log_to_file() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
+}
+
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+    log_to_file "[INFO] $1"
+}
+
+log_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+    log_to_file "[SUCCESS] $1"
+}
+
+log_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+    log_to_file "[WARNING] $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+    log_to_file "[ERROR] $1"
+}
+
+log_step() {
+    echo -e "${CYAN}[STEP]${NC} $1"
+    log_to_file "[STEP] $1"
+}
+
+check_command() {
+    if ! command -v "$1" &> /dev/null; then
+        log_error "$1 is not installed or not in PATH"
+        return 1
+    fi
+    return 0
+}
+
+ask_confirmation() {
+    local prompt="$1"
+    local response
+    
+    while true; do
+        read -p "$(echo -e ${CYAN}${prompt}${NC}) " response
+        case "$response" in
+            [Yy]|[Yy][Ee][Ss])
+                return 0
+                ;;
+            [Nn]|[Nn][Oo])
+                return 1
+                ;;
+            *)
+                echo "Please answer yes or no (y/n)"
+                ;;
+        esac
+    done
+}
+
+find_deployment_script() {
+    local dir="$1"
+    local scripts=("deploy.sh" "build.sh" "build_fast.sh" "build_deploy.sh")
+    
+    for script in "${scripts[@]}"; do
+        if [ -f "$dir/$script" ]; then
+            echo "$script"
+            return 0
+        fi
+    done
+    
+    return 1
+}
+
+# =============================================================================
+# Backend Deployment Functions
+# =============================================================================
+
+deploy_backend() {
+    log_step "Starting backend deployment..."
+    
+    # Check Go is installed
+    if ! check_command "go"; then
+        log_error "Go is required to deploy the backend"
+        return 1
+    fi
+    
+    # Check backend directory exists
+    if [ ! -d "$BACKEND_DIR" ]; then
+        log_error "Backend directory not found: $BACKEND_DIR"
+        return 1
+    fi
+    
+    cd "$BACKEND_DIR"
+    
+    # Find deployment script
+    local deploy_script=$(find_deployment_script "$BACKEND_DIR")
+    
+    if [ -z "$deploy_script" ]; then
+        log_warning "No deployment script found in backend directory"
+        log_info "Looking for: deploy.sh, build.sh, build_fast.sh, build_deploy.sh"
+        
+        if ask_confirmation "Do you want to run a manual build? (y/n):"; then
+            log_info "Running manual Go build..."
+            log_to_file "=== Backend Manual Build Start ==="
+            
+            if go build -o bin/api cmd/api/main.go 2>&1 | tee -a "$LOG_FILE"; then
+                log_success "Backend built successfully: bin/api"
+                log_to_file "=== Backend Manual Build Success ==="
+                return 0
+            else
+                log_error "Backend build failed"
+                log_to_file "=== Backend Manual Build Failed ==="
+                return 1
+            fi
+        else
+            log_info "Skipping backend build"
+            return 0
+        fi
+    else
+        log_info "Found deployment script: $deploy_script"
+        
+        # Make script executable
+        chmod +x "$deploy_script"
+        
+        # Source .env if exists
+        if [ -f ".env" ]; then
+            log_info "Loading backend environment from .env"
+            set -a
+            source .env
+            set +a
+        fi
+        
+        log_info "Executing $deploy_script..."
+        log_to_file "=== Backend Deployment Start: $deploy_script ==="
+        
+        if ./"$deploy_script" 2>&1 | tee -a "$LOG_FILE"; then
+            log_success "Backend deployed successfully"
+            log_to_file "=== Backend Deployment Success ==="
+            return 0
+        else
+            log_error "Backend deployment failed"
+            log_to_file "=== Backend Deployment Failed ==="
+            return 1
+        fi
+    fi
+}
+
+# =============================================================================
+# Admin Deployment Functions
+# =============================================================================
+
+deploy_admin() {
+    log_step "Starting admin panel deployment..."
+    
+    # Check Node.js is installed
+    if ! check_command "node"; then
+        log_error "Node.js is required to deploy the admin panel"
+        return 1
+    fi
+    
+    # Check npm is installed
+    if ! check_command "npm"; then
+        log_error "npm is required to deploy the admin panel"
+        return 1
+    fi
+    
+    # Check admin directory exists
+    if [ ! -d "$ADMIN_DIR" ]; then
+        log_error "Admin directory not found: $ADMIN_DIR"
+        return 1
+    fi
+    
+    cd "$ADMIN_DIR"
+    
+    # Find deployment script
+    local deploy_script=$(find_deployment_script "$ADMIN_DIR")
+    
+    if [ -z "$deploy_script" ]; then
+        log_warning "No deployment script found in admin directory"
+        log_info "Looking for: deploy.sh, build.sh, build_fast.sh, build_deploy.sh"
+        
+        if ask_confirmation "Do you want to run a manual build? (y/n):"; then
+            log_info "Installing dependencies..."
+            log_to_file "=== Admin Dependencies Install Start ==="
+            
+            if npm install 2>&1 | tee -a "$LOG_FILE"; then
+                log_info "Building admin panel..."
+                log_to_file "=== Admin Build Start ==="
+                
+                if npm run build 2>&1 | tee -a "$LOG_FILE"; then
+                    log_success "Admin panel built successfully"
+                    log_to_file "=== Admin Build Success ==="
+                    return 0
+                else
+                    log_error "Admin panel build failed"
+                    log_to_file "=== Admin Build Failed ==="
+                    return 1
+                fi
+            else
+                log_error "Failed to install dependencies"
+                log_to_file "=== Admin Dependencies Install Failed ==="
+                return 1
+            fi
+        else
+            log_info "Skipping admin build"
+            return 0
+        fi
+    else
+        log_info "Found deployment script: $deploy_script"
+        
+        # Make script executable
+        chmod +x "$deploy_script"
+        
+        # Source .env if exists
+        if [ -f ".env" ]; then
+            log_info "Loading admin environment from .env"
+            set -a
+            source .env
+            set +a
+        fi
+        
+        log_info "Executing $deploy_script..."
+        log_to_file "=== Admin Deployment Start: $deploy_script ==="
+        
+        if ./"$deploy_script" 2>&1 | tee -a "$LOG_FILE"; then
+            log_success "Admin panel deployed successfully"
+            log_to_file "=== Admin Deployment Success ==="
+            return 0
+        else
+            log_error "Admin panel deployment failed"
+            log_to_file "=== Admin Deployment Failed ==="
+            return 1
+        fi
+    fi
+}
+
+# =============================================================================
+# Main
+# =============================================================================
+
+show_usage() {
+    echo ""
+    echo "Truth or Dare - Deployment Script"
+    echo ""
+    echo "Usage: $0 [command]"
+    echo ""
+    echo "Commands:"
+    echo "  backend    Deploy only the backend API server"
+    echo "  admin      Deploy only the admin panel"
+    echo "  all        Deploy both backend and admin"
+    echo "  interactive Deploy with interactive prompts (default)"
+    echo "  help       Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  $0                    # Interactive mode (prompts for each)"
+    echo "  $0 backend            # Deploy backend only"
+    echo "  $0 admin              # Deploy admin only"
+    echo "  $0 all                # Deploy both without prompts"
+    echo ""
+}
+
+main() {
+    local COMMAND=${1:-interactive}
+    
+    echo ""
+    echo "=========================================="
+    echo "  Truth or Dare - Deployment"
+    echo "=========================================="
+    echo ""
+    
+    # Setup logging
+    setup_logging
+    
+    local backend_status=0
+    local admin_status=0
+    
+    case "$COMMAND" in
+        backend)
+            deploy_backend
+            backend_status=$?
+            ;;
+        admin)
+            deploy_admin
+            admin_status=$?
+            ;;
+        all)
+            log_info "Deploying all components..."
+            echo ""
+            deploy_backend
+            backend_status=$?
+            echo ""
+            deploy_admin
+            admin_status=$?
+            ;;
+        interactive)
+            log_info "Interactive deployment mode"
+            echo ""
+            
+            if ask_confirmation "Deploy backend? (y/n):"; then
+                echo ""
+                deploy_backend
+                backend_status=$?
+                echo ""
+            else
+                log_info "Skipping backend deployment"
+                echo ""
+            fi
+            
+            if ask_confirmation "Deploy admin panel? (y/n):"; then
+                echo ""
+                deploy_admin
+                admin_status=$?
+                echo ""
+            else
+                log_info "Skipping admin panel deployment"
+                echo ""
+            fi
+            ;;
+        help|--help|-h)
+            show_usage
+            exit 0
+            ;;
+        *)
+            log_error "Unknown command: $COMMAND"
+            show_usage
+            exit 1
+            ;;
+    esac
+    
+    # Summary
+    echo ""
+    echo "=========================================="
+    echo "  Deployment Summary"
+    echo "=========================================="
+    
+    if [ "$COMMAND" != "interactive" ] || ask_confirmation "Deploy backend? (y/n):" 2>/dev/null; then
+        if [ $backend_status -eq 0 ]; then
+            echo -e "  Backend:  ${GREEN}✓ SUCCESS${NC}"
+        else
+            echo -e "  Backend:  ${RED}✗ FAILED${NC}"
+        fi
+    fi
+    
+    if [ "$COMMAND" != "interactive" ] || ask_confirmation "Deploy admin panel? (y/n):" 2>/dev/null; then
+        if [ $admin_status -eq 0 ]; then
+            echo -e "  Admin:    ${GREEN}✓ SUCCESS${NC}"
+        else
+            echo -e "  Admin:    ${RED}✗ FAILED${NC}"
+        fi
+    fi
+    
+    echo "=========================================="
+    echo ""
+    log_info "Deployment log saved to: $LOG_FILE"
+    echo ""
+    
+    # Exit with error if any deployment failed
+    if [ $backend_status -ne 0 ] || [ $admin_status -ne 0 ]; then
+        exit 1
+    fi
+}
+
+main "$@"
 #   - Go 1.21+ for backend
 #   - Node.js 18+ for admin
 #   - npm for admin dependencies

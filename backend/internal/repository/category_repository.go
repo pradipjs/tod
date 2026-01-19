@@ -65,11 +65,6 @@ func (r *CategoryRepository) Update(category *models.Category) error {
 	return r.db.Save(category).Error
 }
 
-// Delete soft-deletes a category.
-func (r *CategoryRepository) Delete(id string) error {
-	return r.db.Delete(&models.Category{}, "id = ?", id).Error
-}
-
 // CountTasks returns the number of tasks in a category.
 func (r *CategoryRepository) CountTasks(categoryID string) (int64, error) {
 	var count int64
@@ -98,4 +93,22 @@ func (r *CategoryRepository) Count(filter *CategoryFilter) (int64, error) {
 
 	err := query.Count(&count).Error
 	return count, err
+}
+
+// ReorderItem represents a category ID and its new sort order.
+type ReorderItem struct {
+	ID        string `json:"id"`
+	SortOrder int    `json:"sort_order"`
+}
+
+// Reorder updates the sort order of multiple categories in a transaction.
+func (r *CategoryRepository) Reorder(items []ReorderItem) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		for _, item := range items {
+			if err := tx.Model(&models.Category{}).Where("id = ?", item.ID).Update("sort_order", item.SortOrder).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }

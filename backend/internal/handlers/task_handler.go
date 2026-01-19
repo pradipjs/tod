@@ -28,7 +28,7 @@ func NewTaskHandler(repo *repository.TaskRepository, categoryRepo *repository.Ca
 
 // List godoc
 // @Summary List tasks
-// @Description Get all tasks with optional filters. Supports multiple values for categories, age groups, types, and languages.
+// @Description Get all tasks with optional filters. Supports multiple values for categories, types, and languages.
 // @Tags tasks
 // @Accept json
 // @Produce json
@@ -36,15 +36,12 @@ func NewTaskHandler(repo *repository.TaskRepository, categoryRepo *repository.Ca
 // @Param category_ids query string false "Multiple category IDs (comma-separated)"
 // @Param type query string false "Single task type (truth, dare)"
 // @Param types query string false "Multiple task types (comma-separated)"
-// @Param age_group query string false "Single age group (kids, teen, adults)"
-// @Param age_groups query string false "Multiple age groups (comma-separated)"
-// @Param languages query string false "Language codes (comma-separated: en,es,hi,ur)"
-// @Param requires_consent query bool false "Filter by consent requirement"
-// @Param active query bool false "Filter by active status"
+// @Param language query string false "Single language code (en, hi, ur, etc.)"
+// @Param languages query string false "Language codes (comma-separated: en,hi,ur)"
 // @Param exclude query string false "Comma-separated task IDs to exclude"
 // @Param from_date query string false "Filter tasks created after this date (RFC3339 format)"
 // @Param to_date query string false "Filter tasks created before this date (RFC3339 format)"
-// @Param sort_by query string false "Sort field (created_at, updated_at, min_age, type)"
+// @Param sort_by query string false "Sort field (created_at, updated_at, language, type)"
 // @Param sort_order query string false "Sort order (asc, desc)"
 // @Param limit query int false "Limit results"
 // @Param offset query int false "Offset for pagination"
@@ -75,41 +72,14 @@ func (h *TaskHandler) List(c *gin.Context) {
 		filter.Types = splitAndTrim(types)
 	}
 
-	// Single age group
-	if ageGroup := c.Query("age_group"); ageGroup != "" {
-		filter.AgeGroup = ageGroup
-	}
-
-	// Multiple age groups
-	if ageGroups := c.Query("age_groups"); ageGroups != "" {
-		filter.AgeGroups = splitAndTrim(ageGroups)
+	// Single language
+	if language := c.Query("language"); language != "" {
+		filter.Language = language
 	}
 
 	// Multiple languages
 	if languages := c.Query("languages"); languages != "" {
 		filter.Languages = splitAndTrim(languages)
-	}
-
-	// Legacy min_age support
-	if minAge := c.Query("min_age"); minAge != "" {
-		if age, err := strconv.Atoi(minAge); err == nil {
-			filter.MinAge = &age
-		}
-	}
-
-	if consent := c.Query("requires_consent"); consent != "" {
-		if val, err := strconv.ParseBool(consent); err == nil {
-			filter.RequiresConsent = &val
-		}
-	}
-
-	if active := c.Query("active"); active != "" {
-		if val, err := strconv.ParseBool(active); err == nil {
-			filter.IsActive = &val
-		}
-	} else {
-		active := true
-		filter.IsActive = &active
 	}
 
 	if exclude := c.Query("exclude"); exclude != "" {
@@ -212,7 +182,6 @@ func splitAndTrim(s string) []string {
 // @Accept json
 // @Produce json
 // @Param category_ids query string false "Category IDs (comma-separated)"
-// @Param age_groups query string false "Age groups (comma-separated)"
 // @Param languages query string false "Language codes (comma-separated)"
 // @Success 200 {object} TaskAvailabilityResponse
 // @Failure 500 {object} models.ErrorResponse
@@ -224,17 +193,9 @@ func (h *TaskHandler) CheckAvailability(c *gin.Context) {
 		filter.CategoryIDs = splitAndTrim(categoryIDs)
 	}
 
-	if ageGroups := c.Query("age_groups"); ageGroups != "" {
-		filter.AgeGroups = splitAndTrim(ageGroups)
-	}
-
 	if languages := c.Query("languages"); languages != "" {
 		filter.Languages = splitAndTrim(languages)
 	}
-
-	// Default to active only
-	active := true
-	filter.IsActive = &active
 
 	truthCount, dareCount, err := h.repo.CountByFilters(filter)
 	if err != nil {
@@ -297,8 +258,8 @@ func (h *TaskHandler) Get(c *gin.Context) {
 // @Param category_id query string false "Category ID filter"
 // @Param category_ids query string false "Multiple category IDs (comma-separated)"
 // @Param type query string false "Task type (truth, dare)"
-// @Param min_age query int false "Filter tasks suitable for this age"
-// @Param requires_consent query bool false "Filter by consent requirement"
+// @Param language query string false "Language code (en, hi, ur, etc.)"
+// @Param languages query string false "Language codes (comma-separated)"
 // @Param exclude query string false "Comma-separated task IDs to exclude"
 // @Success 200 {object} models.TaskResponse
 // @Failure 404 {object} models.ErrorResponse
@@ -319,25 +280,17 @@ func (h *TaskHandler) GetRandom(c *gin.Context) {
 		filter.Type = taskType
 	}
 
-	if minAge := c.Query("min_age"); minAge != "" {
-		if age, err := strconv.Atoi(minAge); err == nil {
-			filter.MinAge = &age
-		}
+	if language := c.Query("language"); language != "" {
+		filter.Language = language
 	}
 
-	if consent := c.Query("requires_consent"); consent != "" {
-		if val, err := strconv.ParseBool(consent); err == nil {
-			filter.RequiresConsent = &val
-		}
+	if languages := c.Query("languages"); languages != "" {
+		filter.Languages = strings.Split(languages, ",")
 	}
 
 	if exclude := c.Query("exclude"); exclude != "" {
 		filter.ExcludeIDs = strings.Split(exclude, ",")
 	}
-
-	// Default to active only
-	active := true
-	filter.IsActive = &active
 
 	task, err := h.repo.FindRandom(filter)
 	if err != nil {
@@ -353,12 +306,10 @@ func (h *TaskHandler) GetRandom(c *gin.Context) {
 
 // CreateTaskRequest is the request body for creating a task.
 type CreateTaskRequest struct {
-	Text            models.MultilingualText `json:"text" binding:"required"`
-	Hint            models.MultilingualText `json:"hint"`
-	Type            string                  `json:"type" binding:"required,oneof=truth dare"`
-	CategoryID      string                  `json:"category_id" binding:"required"`
-	MinAge          int                     `json:"min_age"`
-	RequiresConsent bool                    `json:"requires_consent"`
+	Text       string `json:"text" binding:"required"`
+	Type       string `json:"type" binding:"required,oneof=truth dare"`
+	CategoryID string `json:"category_id" binding:"required"`
+	Language   string `json:"language" binding:"required,len=2"`
 }
 
 // Create godoc
@@ -393,13 +344,10 @@ func (h *TaskHandler) Create(c *gin.Context) {
 	}
 
 	task := &models.Task{
-		Text:            req.Text,
-		Hint:            req.Hint,
-		Type:            req.Type,
-		CategoryID:      req.CategoryID,
-		MinAge:          req.MinAge,
-		RequiresConsent: req.RequiresConsent,
-		IsActive:        true,
+		Text:       req.Text,
+		Type:       req.Type,
+		CategoryID: req.CategoryID,
+		Language:   req.Language,
 	}
 
 	if err := h.repo.Create(task); err != nil {
@@ -443,13 +391,10 @@ func (h *TaskHandler) CreateBatch(c *gin.Context) {
 	tasks := make([]models.Task, len(req.Tasks))
 	for i, t := range req.Tasks {
 		tasks[i] = models.Task{
-			Text:            t.Text,
-			Hint:            t.Hint,
-			Type:            t.Type,
-			CategoryID:      t.CategoryID,
-			MinAge:          t.MinAge,
-			RequiresConsent: t.RequiresConsent,
-			IsActive:        true,
+			Text:       t.Text,
+			Type:       t.Type,
+			CategoryID: t.CategoryID,
+			Language:   t.Language,
 		}
 	}
 
@@ -502,11 +447,9 @@ func (h *TaskHandler) Update(c *gin.Context) {
 	}
 
 	task.Text = req.Text
-	task.Hint = req.Hint
 	task.Type = req.Type
 	task.CategoryID = req.CategoryID
-	task.MinAge = req.MinAge
-	task.RequiresConsent = req.RequiresConsent
+	task.Language = req.Language
 
 	if err := h.repo.Update(task); err != nil {
 		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
@@ -605,9 +548,8 @@ func (h *TaskHandler) Stats(c *gin.Context) {
 // @Param category_ids query string false "Multiple category IDs (comma-separated)"
 // @Param type query string false "Single task type (truth, dare)"
 // @Param types query string false "Multiple task types (comma-separated)"
-// @Param age_group query string false "Single age group (kids, teen, adults)"
-// @Param age_groups query string false "Multiple age groups (comma-separated)"
-// @Param active query bool false "Filter by active status"
+// @Param language query string false "Single language code (en, hi, ur, etc.)"
+// @Param languages query string false "Language codes (comma-separated)"
 // @Param from_date query string false "Filter tasks created after this date (RFC3339 format)"
 // @Param to_date query string false "Filter tasks created before this date (RFC3339 format)"
 // @Success 200 {object} map[string]interface{}
@@ -632,18 +574,12 @@ func (h *TaskHandler) Count(c *gin.Context) {
 		filter.Types = splitAndTrim(types)
 	}
 
-	if ageGroup := c.Query("age_group"); ageGroup != "" {
-		filter.AgeGroup = ageGroup
+	if language := c.Query("language"); language != "" {
+		filter.Language = language
 	}
 
-	if ageGroups := c.Query("age_groups"); ageGroups != "" {
-		filter.AgeGroups = splitAndTrim(ageGroups)
-	}
-
-	if active := c.Query("active"); active != "" {
-		if val, err := strconv.ParseBool(active); err == nil {
-			filter.IsActive = &val
-		}
+	if languages := c.Query("languages"); languages != "" {
+		filter.Languages = splitAndTrim(languages)
 	}
 
 	if fromDate := c.Query("from_date"); fromDate != "" {

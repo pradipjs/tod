@@ -26,7 +26,7 @@ import { useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
-const DRAWER_WIDTH = 260;
+const DRAWER_WIDTH = 200;
 
 const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
@@ -61,20 +61,21 @@ export default function Layout() {
 
     const drawer = (
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Toolbar sx={{ px: 2 }}>
-                <Typography variant="h6" fontWeight={700} color="primary">
-                    🎭 ToD Admin
+            <Toolbar sx={{ px: 2, minHeight: '48px !important', justifyContent: 'center' }}>
+                <Typography variant="subtitle1" fontWeight={700} color="primary">
+                    🎭 Truth or Dare
                 </Typography>
             </Toolbar>
             <Divider />
-            <List sx={{ flex: 1, px: 1 }}>
+            <List sx={{ flex: 1, px: 1, py: 0.5 }}>
                 {menuItems.map((item) => (
-                    <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
+                    <ListItem key={item.text} disablePadding sx={{ mb: 0.25 }}>
                         <ListItemButton
                             onClick={() => handleNavigation(item.path)}
                             selected={location.pathname === item.path}
                             sx={{
-                                borderRadius: 2,
+                                borderRadius: 1,
+                                py: 0.75,
                                 '&.Mui-selected': {
                                     bgcolor: 'primary.main',
                                     color: 'white',
@@ -87,19 +88,20 @@ export default function Layout() {
                                 },
                             }}
                         >
-                            <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
-                            <ListItemText primary={item.text} />
+                            <ListItemIcon sx={{ minWidth: 32 }}>{item.icon}</ListItemIcon>
+                            <ListItemText primary={item.text} primaryTypographyProps={{ variant: 'body2' }} />
                         </ListItemButton>
                     </ListItem>
                 ))}
             </List>
             <Divider />
-            <List sx={{ px: 1 }}>
+            <List sx={{ px: 1, py: 0.5 }}>
                 <ListItem disablePadding>
                     <ListItemButton
                         onClick={handleLogout}
                         sx={{
-                            borderRadius: 2,
+                            borderRadius: 1,
+                            py: 0.75,
                             color: 'error.main',
                             '&:hover': {
                                 bgcolor: 'error.light',
@@ -107,10 +109,10 @@ export default function Layout() {
                             },
                         }}
                     >
-                        <ListItemIcon sx={{ minWidth: 40, color: 'inherit' }}>
+                        <ListItemIcon sx={{ minWidth: 32, color: 'inherit' }}>
                             <LogoutIcon />
                         </ListItemIcon>
-                        <ListItemText primary="Logout" />
+                        <ListItemText primary="Logout" primaryTypographyProps={{ variant: 'body2' }} />
                     </ListItemButton>
                 </ListItem>
             </List>
@@ -130,7 +132,7 @@ export default function Layout() {
                     borderColor: 'divider',
                 }}
             >
-                <Toolbar>
+                <Toolbar sx={{ minHeight: '48px !important' }}>
                     <IconButton
                         color="inherit"
                         edge="start"
@@ -139,7 +141,7 @@ export default function Layout() {
                     >
                         <MenuIcon />
                     </IconButton>
-                    <Typography variant="h6" color="text.primary" fontWeight={600}>
+                    <Typography variant="subtitle1" color="text.primary" fontWeight={600}>
                         {menuItems.find((item) => item.path === location.pathname)?.text || 'Dashboard'}
                     </Typography>
                 </Toolbar>
@@ -185,13 +187,13 @@ export default function Layout() {
                 component="main"
                 sx={{
                     flexGrow: 1,
-                    p: 3,
+                    p: 2,
                     width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
                     minHeight: '100vh',
                     bgcolor: 'background.default',
                 }}
             >
-                <Toolbar />
+                <Toolbar sx={{ minHeight: '48px !important' }} />
                 <Outlet />
             </Box>
         </Box>

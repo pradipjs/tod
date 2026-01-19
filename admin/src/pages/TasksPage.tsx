@@ -1,7 +1,6 @@
 import {
     Add as AddIcon,
     Delete as DeleteIcon,
-    Edit as EditIcon,
     ExpandLess as ExpandLessIcon,
     FilterList as FilterIcon
 } from '@mui/icons-material';
@@ -18,13 +17,11 @@ import {
     DialogContent,
     DialogTitle,
     FormControl,
-    FormControlLabel,
     IconButton,
     InputLabel,
     MenuItem,
     Select,
     Snackbar,
-    Switch,
     Table,
     TableBody,
     TableCell,
@@ -36,15 +33,15 @@ import {
     Typography,
 } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { createTask, deleteTask, getCategories, getTasks, updateTask } from '../api';
 import {
-    AGE_GROUPS,
     LANGUAGES,
     LANGUAGE_NAMES,
     TASK_TYPES,
-    type AgeGroup,
     type CreateTaskDto,
+    type Language,
     type Task,
     type TaskFilter,
     type TaskType
@@ -53,27 +50,72 @@ import {
 const INITIAL_FORM: CreateTaskDto = {
     category_id: '',
     type: 'truth',
-    text: { en: '' },
-    hint: {},
-    min_age: 0,
-    requires_consent: false,
+    text: '',
+    language: 'en',
+};
+
+// Validation errors type
+interface TaskFormErrors {
+    category_id?: string;
+    type?: string;
+    text?: string;
+    language?: string;
+}
+
+// Parse initial filters from URL search params
+const getInitialFilters = (searchParams: URLSearchParams): TaskFilter => {
+    const filters: TaskFilter = {};
+    const type = searchParams.get('type');
+    const language = searchParams.get('language');
+    const category = searchParams.get('category');
+
+    if (type && TASK_TYPES.includes(type as TaskType)) {
+        filters.types = [type as TaskType];
+    }
+    if (language && LANGUAGES.includes(language as Language)) {
+        filters.language = language as Language;
+    }
+    if (category) {
+        filters.category_ids = [category];
+    }
+    return filters;
 };
 
 export default function TasksPage() {
     const queryClient = useQueryClient();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [dialogOpen, setDialogOpen] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-    const [filterOpen, setFilterOpen] = useState(false);
+    const [filterOpen, setFilterOpen] = useState(() => {
+        // Auto-open filters if URL has filter params
+        return searchParams.has('type') || searchParams.has('language') || searchParams.has('category');
+    });
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [form, setForm] = useState<CreateTaskDto>(INITIAL_FORM);
+    const [formErrors, setFormErrors] = useState<TaskFormErrors>({});
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(20);
-    const [filters, setFilters] = useState<TaskFilter>({});
+    const [filters, setFilters] = useState<TaskFilter>(() => getInitialFilters(searchParams));
     const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
         open: false,
         message: '',
         severity: 'success',
     });
+
+    // Sync filters to URL
+    useEffect(() => {
+        const params = new URLSearchParams();
+        if (filters.types?.length === 1) {
+            params.set('type', filters.types[0]);
+        }
+        if (filters.language) {
+            params.set('language', filters.language);
+        }
+        if (filters.category_ids?.length === 1) {
+            params.set('category', filters.category_ids[0]);
+        }
+        setSearchParams(params, { replace: true });
+    }, [filters, setSearchParams]);
 
     const { data: categories } = useQuery({
         queryKey: ['categories'],
@@ -126,21 +168,42 @@ export default function TasksPage() {
         },
     });
 
+    // Validate task form
+    const validateTaskForm = (): boolean => {
+        const errors: TaskFormErrors = {};
+
+        if (!form.category_id) {
+            errors.category_id = 'Category is required';
+        }
+        if (!form.type) {
+            errors.type = 'Type is required';
+        }
+        if (!form.text || form.text.trim() === '') {
+            errors.text = 'Task text is required';
+        }
+        if (!form.language) {
+            errors.language = 'Language is required';
+        }
+
+        setFormErrors(errors);
+        return Object.keys(errors).length === 0;
+    };
+
     const handleCreate = () => {
         setSelectedTask(null);
         setForm(INITIAL_FORM);
+        setFormErrors({});
         setDialogOpen(true);
     };
 
     const handleEdit = (task: Task) => {
         setSelectedTask(task);
+        setFormErrors({});
         setForm({
             category_id: task.category_id,
             type: task.type,
             text: task.text,
-            hint: task.hint || {},
-            min_age: getMinAgeForGroup(task.age_group),
-            requires_consent: task.requires_consent,
+            language: task.language,
         });
         setDialogOpen(true);
     };
@@ -151,6 +214,9 @@ export default function TasksPage() {
     };
 
     const handleSubmit = () => {
+        if (!validateTaskForm()) {
+            return;
+        }
         if (selectedTask) {
             updateMutation.mutate({ id: selectedTask.id, data: form });
         } else {
@@ -161,33 +227,6 @@ export default function TasksPage() {
     const handleConfirmDelete = () => {
         if (selectedTask) {
             deleteMutation.mutate(selectedTask.id);
-        }
-    };
-
-    const updateText = (lang: string, value: string) => {
-        setForm((prev) => ({
-            ...prev,
-            text: { ...prev.text, [lang]: value },
-        }));
-    };
-
-    const updateHint = (lang: string, value: string) => {
-        setForm((prev) => ({
-            ...prev,
-            hint: { ...(prev.hint || {}), [lang]: value },
-        }));
-    };
-
-    const getMinAgeForGroup = (group: AgeGroup): number => {
-        switch (group) {
-            case 'kids':
-                return 0;
-            case 'teen':
-                return 13;
-            case 'adults':
-                return 18;
-            default:
-                return 0;
         }
     };
 
@@ -210,32 +249,30 @@ export default function TasksPage() {
 
     return (
         <Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                <Box>
-                    <Typography variant="h4" fontWeight={700}>
-                        Tasks
-                    </Typography>
-                    <Typography color="text.secondary">Manage truth and dare tasks</Typography>
-                </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h5" fontWeight={700}>
+                    Tasks
+                </Typography>
                 <Box sx={{ display: 'flex', gap: 1 }}>
                     <Button
                         variant="outlined"
+                        size="small"
                         startIcon={filterOpen ? <ExpandLessIcon /> : <FilterIcon />}
                         onClick={() => setFilterOpen(!filterOpen)}
                     >
                         Filters
                     </Button>
-                    <Button variant="contained" startIcon={<AddIcon />} onClick={handleCreate}>
-                        Add Task
+                    <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={handleCreate}>
+                        Add
                     </Button>
                 </Box>
             </Box>
 
             {/* Filters */}
             <Collapse in={filterOpen}>
-                <Card sx={{ mb: 3, p: 2 }}>
-                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                        <FormControl size="small" sx={{ minWidth: 150 }}>
+                <Card sx={{ mb: 2, p: 1.5 }}>
+                    <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <FormControl size="small" sx={{ minWidth: 140 }}>
                             <InputLabel>Category</InputLabel>
                             <Select
                                 multiple
@@ -253,7 +290,7 @@ export default function TasksPage() {
                             </Select>
                         </FormControl>
 
-                        <FormControl size="small" sx={{ minWidth: 120 }}>
+                        <FormControl size="small" sx={{ minWidth: 100 }}>
                             <InputLabel>Type</InputLabel>
                             <Select
                                 multiple
@@ -270,49 +307,32 @@ export default function TasksPage() {
                         </FormControl>
 
                         <FormControl size="small" sx={{ minWidth: 120 }}>
-                            <InputLabel>Age Group</InputLabel>
+                            <InputLabel>Language</InputLabel>
                             <Select
                                 multiple
-                                value={filters.age_groups || []}
-                                label="Age Group"
+                                value={filters.languages || []}
+                                label="Language"
                                 onChange={(e) =>
-                                    setFilters({ ...filters, age_groups: e.target.value as AgeGroup[] })
+                                    setFilters({ ...filters, languages: e.target.value as Language[] })
                                 }
                             >
-                                {AGE_GROUPS.map((group) => (
-                                    <MenuItem key={group} value={group}>
-                                        {group.charAt(0).toUpperCase() + group.slice(1)}
+                                {LANGUAGES.map((lang) => (
+                                    <MenuItem key={lang} value={lang}>
+                                        {LANGUAGE_NAMES[lang]}
                                     </MenuItem>
                                 ))}
                             </Select>
                         </FormControl>
 
-                        <FormControl size="small" sx={{ minWidth: 120 }}>
-                            <InputLabel>Status</InputLabel>
-                            <Select
-                                value={filters.active === undefined ? '' : String(filters.active)}
-                                label="Status"
-                                onChange={(e) =>
-                                    setFilters({
-                                        ...filters,
-                                        active: e.target.value === '' ? undefined : e.target.value === 'true',
-                                    })
-                                }
-                            >
-                                <MenuItem value="">All</MenuItem>
-                                <MenuItem value="true">Active</MenuItem>
-                                <MenuItem value="false">Inactive</MenuItem>
-                            </Select>
-                        </FormControl>
-
                         <Button
                             variant="text"
+                            size="small"
                             onClick={() => {
                                 setFilters({});
                                 setPage(0);
                             }}
                         >
-                            Clear Filters
+                            Clear
                         </Button>
                     </Box>
                 </Card>
@@ -320,55 +340,45 @@ export default function TasksPage() {
 
             <Card>
                 <TableContainer>
-                    <Table>
+                    <Table size="small">
                         <TableHead>
                             <TableRow>
-                                <TableCell>Type</TableCell>
-                                <TableCell>Text (EN)</TableCell>
-                                <TableCell>Category</TableCell>
-                                <TableCell>Age Group</TableCell>
-                                <TableCell>Status</TableCell>
-                                <TableCell align="right">Actions</TableCell>
+                                <TableCell sx={{ py: 1 }}>Type</TableCell>
+                                <TableCell sx={{ py: 1 }}>Text</TableCell>
+                                <TableCell sx={{ py: 1 }}>Category</TableCell>
+                                <TableCell sx={{ py: 1 }}>Lang</TableCell>
+                                <TableCell sx={{ py: 1, width: 40 }}></TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {tasksData?.data?.map((task) => (
-                                <TableRow key={task.id}>
-                                    <TableCell>
+                                <TableRow
+                                    key={task.id}
+                                    hover
+                                    onClick={() => handleEdit(task)}
+                                    sx={{ cursor: 'pointer' }}
+                                >
+                                    <TableCell sx={{ py: 0.5 }}>
                                         <Chip
                                             label={task.type}
                                             size="small"
                                             color={task.type === 'truth' ? 'primary' : 'secondary'}
+                                            sx={{ height: 20, fontSize: '0.7rem' }}
                                         />
                                     </TableCell>
-                                    <TableCell sx={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                        {task.text.en || '-'}
+                                    <TableCell sx={{ py: 0.5, maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {task.text || '-'}
                                     </TableCell>
-                                    <TableCell>{getCategoryName(task.category_id)}</TableCell>
-                                    <TableCell>
+                                    <TableCell sx={{ py: 0.5 }}>{getCategoryName(task.category_id)}</TableCell>
+                                    <TableCell sx={{ py: 0.5 }}>
                                         <Chip
-                                            label={task.age_group}
+                                            label={task.language.toUpperCase()}
                                             size="small"
-                                            color={
-                                                task.age_group === 'kids'
-                                                    ? 'success'
-                                                    : task.age_group === 'teen'
-                                                        ? 'warning'
-                                                        : 'error'
-                                            }
+                                            variant="outlined"
+                                            sx={{ height: 20, fontSize: '0.7rem' }}
                                         />
                                     </TableCell>
-                                    <TableCell>
-                                        <Chip
-                                            label={task.is_active ? 'Active' : 'Inactive'}
-                                            size="small"
-                                            color={task.is_active ? 'success' : 'default'}
-                                        />
-                                    </TableCell>
-                                    <TableCell align="right">
-                                        <IconButton size="small" onClick={() => handleEdit(task)}>
-                                            <EditIcon fontSize="small" />
-                                        </IconButton>
+                                    <TableCell sx={{ py: 0.5 }} onClick={(e) => e.stopPropagation()}>
                                         <IconButton size="small" color="error" onClick={() => handleDelete(task)}>
                                             <DeleteIcon fontSize="small" />
                                         </IconButton>
@@ -377,8 +387,8 @@ export default function TasksPage() {
                             ))}
                             {(!tasksData?.data || tasksData.data.length === 0) && (
                                 <TableRow>
-                                    <TableCell colSpan={7} align="center">
-                                        <Typography color="text.secondary" sx={{ py: 4 }}>
+                                    <TableCell colSpan={5} align="center">
+                                        <Typography color="text.secondary" sx={{ py: 2 }}>
                                             No tasks found. Create your first task!
                                         </Typography>
                                     </TableCell>
@@ -402,17 +412,20 @@ export default function TasksPage() {
             </Card>
 
             {/* Create/Edit Dialog */}
-            <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="md" fullWidth>
+            <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
                 <DialogTitle>{selectedTask ? 'Edit Task' : 'Create Task'}</DialogTitle>
                 <DialogContent>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
                         <Box sx={{ display: 'flex', gap: 2 }}>
-                            <FormControl sx={{ flex: 1 }}>
-                                <InputLabel>Category</InputLabel>
+                            <FormControl sx={{ flex: 1 }} error={!!formErrors.category_id}>
+                                <InputLabel>Category *</InputLabel>
                                 <Select
                                     value={form.category_id}
-                                    label="Category"
-                                    onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+                                    label="Category *"
+                                    onChange={(e) => {
+                                        setForm({ ...form, category_id: e.target.value });
+                                        if (formErrors.category_id) setFormErrors({ ...formErrors, category_id: undefined });
+                                    }}
                                 >
                                     {categories?.map((cat) => (
                                         <MenuItem key={cat.id} value={cat.id}>
@@ -420,13 +433,19 @@ export default function TasksPage() {
                                         </MenuItem>
                                     ))}
                                 </Select>
+                                {formErrors.category_id && (
+                                    <Typography variant="caption" color="error">{formErrors.category_id}</Typography>
+                                )}
                             </FormControl>
-                            <FormControl sx={{ minWidth: 120 }}>
-                                <InputLabel>Type</InputLabel>
+                            <FormControl sx={{ minWidth: 120 }} error={!!formErrors.type}>
+                                <InputLabel>Type *</InputLabel>
                                 <Select
                                     value={form.type}
-                                    label="Type"
-                                    onChange={(e) => setForm({ ...form, type: e.target.value as TaskType })}
+                                    label="Type *"
+                                    onChange={(e) => {
+                                        setForm({ ...form, type: e.target.value as TaskType });
+                                        if (formErrors.type) setFormErrors({ ...formErrors, type: undefined });
+                                    }}
                                 >
                                     {TASK_TYPES.map((type) => (
                                         <MenuItem key={type} value={type}>
@@ -434,57 +453,47 @@ export default function TasksPage() {
                                         </MenuItem>
                                     ))}
                                 </Select>
+                                {formErrors.type && (
+                                    <Typography variant="caption" color="error">{formErrors.type}</Typography>
+                                )}
                             </FormControl>
                         </Box>
 
+                        <FormControl fullWidth error={!!formErrors.language}>
+                            <InputLabel>Language *</InputLabel>
+                            <Select
+                                value={form.language}
+                                label="Language *"
+                                onChange={(e) => {
+                                    setForm({ ...form, language: e.target.value as Language });
+                                    if (formErrors.language) setFormErrors({ ...formErrors, language: undefined });
+                                }}
+                            >
+                                {LANGUAGES.map((lang) => (
+                                    <MenuItem key={lang} value={lang}>
+                                        {LANGUAGE_NAMES[lang]}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                            {formErrors.language && (
+                                <Typography variant="caption" color="error">{formErrors.language}</Typography>
+                            )}
+                        </FormControl>
+
                         <TextField
-                            label="Min Age"
-                            type="number"
-                            value={form.min_age}
-                            onChange={(e) => setForm({ ...form, min_age: parseInt(e.target.value) || 0 })}
-                            sx={{ width: 120 }}
-                        />
-
-                        <Typography variant="subtitle2" sx={{ mt: 1 }}>
-                            Task Text (multilingual)
-                        </Typography>
-                        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2 }}>
-                            {LANGUAGES.map((lang) => (
-                                <TextField
-                                    key={lang}
-                                    label={`Text (${LANGUAGE_NAMES[lang]})`}
-                                    value={form.text[lang] || ''}
-                                    onChange={(e) => updateText(lang, e.target.value)}
-                                    size="small"
-                                    multiline
-                                    rows={2}
-                                />
-                            ))}
-                        </Box>
-
-                        <Typography variant="subtitle2" sx={{ mt: 1 }}>
-                            Hint (optional, multilingual)
-                        </Typography>
-                        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2 }}>
-                            {LANGUAGES.slice(0, 4).map((lang) => (
-                                <TextField
-                                    key={lang}
-                                    label={`Hint (${LANGUAGE_NAMES[lang]})`}
-                                    value={form.hint?.[lang] || ''}
-                                    onChange={(e) => updateHint(lang, e.target.value)}
-                                    size="small"
-                                />
-                            ))}
-                        </Box>
-
-                        <FormControlLabel
-                            control={
-                                <Switch
-                                    checked={form.requires_consent}
-                                    onChange={(e) => setForm({ ...form, requires_consent: e.target.checked })}
-                                />
-                            }
-                            label="Requires Consent"
+                            label="Task Text *"
+                            value={form.text}
+                            onChange={(e) => {
+                                setForm({ ...form, text: e.target.value });
+                                if (formErrors.text) setFormErrors({ ...formErrors, text: undefined });
+                            }}
+                            multiline
+                            rows={3}
+                            error={!!formErrors.text}
+                            helperText={formErrors.text}
+                            required
+                            fullWidth
+                            placeholder="Enter the task text..."
                         />
                     </Box>
                 </DialogContent>

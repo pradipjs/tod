@@ -7,12 +7,10 @@ import {
     CardContent,
     CircularProgress,
     FormControl,
-    FormControlLabel,
     InputLabel,
     MenuItem,
     Select,
     Snackbar,
-    Switch,
     TextField,
     Typography,
 } from '@mui/material';
@@ -31,12 +29,10 @@ import {
 export default function GeneratePage() {
     const queryClient = useQueryClient();
     const [form, setForm] = useState<GenerateRequest>({
-        age_group: 'adults',
-        category_id: '',
-        category_name: '',
-        language: 'en',
-        count: 5,
-        explicit_mode: false,
+        age_group: null,
+        category_id: null,
+        language: null,
+        count: 10,
     });
     const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
         open: false,
@@ -51,9 +47,10 @@ export default function GeneratePage() {
 
     const generateMutation = useMutation({
         mutationFn: generateTasks,
-        onSuccess: () => {
+        onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ['tasks'] });
-            setSnackbar({ open: true, message: 'Tasks generated successfully!', severity: 'success' });
+            const msg = `Generated ${data.tasks_created} tasks (${data.total_truths_count} truths, ${data.total_dares_count} dares) across ${data.combinations_count} combination(s)`;
+            setSnackbar({ open: true, message: msg, severity: 'success' });
         },
         onError: (error: Error) => {
             setSnackbar({ open: true, message: `Failed to generate tasks: ${error.message}`, severity: 'error' });
@@ -61,15 +58,12 @@ export default function GeneratePage() {
     });
 
     const handleGenerate = () => {
-        if (!form.category_id) {
-            setSnackbar({ open: true, message: 'Please select a category', severity: 'error' });
-            return;
-        }
         generateMutation.mutate(form);
     };
 
+    // Filter categories based on selected age group
     const filteredCategories = categories?.filter((cat) => {
-        // Filter categories based on age group compatibility
+        if (!form.age_group) return true; // Show all if "All" selected
         if (form.age_group === 'kids') {
             return cat.age_group === 'kids';
         } else if (form.age_group === 'teen') {
@@ -88,54 +82,85 @@ export default function GeneratePage() {
 
     return (
         <Box>
-            <Box sx={{ mb: 3 }}>
-                <Typography variant="h4" fontWeight={700}>
-                    Generate Tasks
-                </Typography>
-                <Typography color="text.secondary">
-                    Use AI to generate truth or dare tasks automatically
-                </Typography>
-            </Box>
+            <Typography variant="h5" fontWeight={700} sx={{ mb: 2 }}>
+                Generate Tasks
+            </Typography>
 
-            <Card sx={{ maxWidth: 600 }}>
-                <CardContent>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                        <FormControl fullWidth>
-                            <InputLabel>Age Group</InputLabel>
-                            <Select
-                                value={form.age_group}
-                                label="Age Group"
-                                onChange={(e) => {
-                                    setForm({ ...form, age_group: e.target.value as AgeGroup, category_id: '', category_name: '' });
-                                }}
-                            >
-                                {AGE_GROUPS.map((group) => (
-                                    <MenuItem key={group} value={group}>
-                                        {group.charAt(0).toUpperCase() + group.slice(1)}
-                                        {group === 'kids' && ' (0-12)'}
-                                        {group === 'teen' && ' (13-17)'}
-                                        {group === 'adults' && ' (18+)'}
+            <Card sx={{ maxWidth: 500 }}>
+                <CardContent sx={{ py: 2, '&:last-child': { pb: 2 } }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <Box sx={{ display: 'flex', gap: 2 }}>
+                            <FormControl size="small" sx={{ flex: 1 }}>
+                                <InputLabel shrink>Age Group</InputLabel>
+                                <Select
+                                    value={form.age_group ?? ''}
+                                    label="Age Group"
+                                    displayEmpty
+                                    notched
+                                    renderValue={(selected) => selected ? (selected as string).charAt(0).toUpperCase() + (selected as string).slice(1) : 'All'}
+                                    onChange={(e) => {
+                                        const rawValue = e.target.value as string;
+                                        const value = rawValue === '' ? null : rawValue as AgeGroup;
+                                        setForm({ ...form, age_group: value, category_id: null });
+                                    }}
+                                >
+                                    <MenuItem value="">
+                                        <em>All</em>
                                     </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
+                                    {AGE_GROUPS.map((group) => (
+                                        <MenuItem key={group} value={group}>
+                                            {group.charAt(0).toUpperCase() + group.slice(1)}
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
 
-                        <FormControl fullWidth>
-                            <InputLabel>Category</InputLabel>
+                            <FormControl size="small" sx={{ flex: 1 }}>
+                                <InputLabel shrink>Language</InputLabel>
+                                <Select
+                                    value={form.language ?? ''}
+                                    label="Language"
+                                    displayEmpty
+                                    notched
+                                    renderValue={(selected) => selected ? LANGUAGE_NAMES[selected as Language] : 'All'}
+                                    onChange={(e) => {
+                                        const rawValue = e.target.value as string;
+                                        const value = rawValue === '' ? null : rawValue as Language;
+                                        setForm({ ...form, language: value });
+                                    }}
+                                >
+                                    <MenuItem value="">
+                                        <em>All</em>
+                                    </MenuItem>
+                                    {LANGUAGES.map((lang) => (
+                                        <MenuItem key={lang} value={lang}>
+                                            {LANGUAGE_NAMES[lang]}
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        </Box>
+
+                        <FormControl size="small" fullWidth>
+                            <InputLabel shrink>Category</InputLabel>
                             <Select
-                                value={form.category_id}
+                                value={form.category_id ?? ''}
                                 label="Category"
+                                displayEmpty
+                                notched
+                                renderValue={(selected) => {
+                                    if (!selected) return 'All Categories';
+                                    const cat = filteredCategories?.find(c => c.id === selected);
+                                    return cat ? `${cat.emoji} ${cat.label.en}` : 'All Categories';
+                                }}
                                 onChange={(e) => {
-                                    const selectedCategory = filteredCategories?.find(cat => cat.id === e.target.value);
-                                    setForm({
-                                        ...form,
-                                        category_id: e.target.value,
-                                        category_name: selectedCategory?.label.en ?? '',
-                                        // Auto-set explicit_mode based on category's requires_consent
-                                        explicit_mode: selectedCategory?.requires_consent ?? false
-                                    });
+                                    const value = e.target.value === '' ? null : e.target.value;
+                                    setForm({ ...form, category_id: value });
                                 }}
                             >
+                                <MenuItem value="">
+                                    <em>All Categories</em>
+                                </MenuItem>
                                 {filteredCategories?.map((cat) => (
                                     <MenuItem key={cat.id} value={cat.id}>
                                         {cat.emoji} {cat.label.en} {cat.requires_consent && '🔞'}
@@ -144,64 +169,30 @@ export default function GeneratePage() {
                             </Select>
                         </FormControl>
 
-                        <FormControl fullWidth>
-                            <InputLabel>Language</InputLabel>
-                            <Select
-                                value={form.language}
-                                label="Language"
-                                onChange={(e) => setForm({ ...form, language: e.target.value as Language })}
-                            >
-                                {LANGUAGES.map((lang) => (
-                                    <MenuItem key={lang} value={lang}>
-                                        {LANGUAGE_NAMES[lang]}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-
-                        <TextField
-                            fullWidth
-                            label="Number of Tasks"
-                            type="number"
-                            value={form.count}
-                            onChange={(e) => setForm({ ...form, count: Math.min(50, Math.max(1, parseInt(e.target.value) || 1)) })}
-                            inputProps={{ min: 1, max: 50 }}
-                            helperText="Generate 1-50 tasks at a time"
-                        />
-
-                        {form.age_group === 'adults' && (
-                            <FormControlLabel
-                                control={
-                                    <Switch
-                                        checked={form.explicit_mode}
-                                        onChange={(e) => setForm({ ...form, explicit_mode: e.target.checked })}
-                                    />
-                                }
-                                label={
-                                    <Box>
-                                        <Typography>Explicit Mode</Typography>
-                                        <Typography variant="caption" color="text.secondary">
-                                            Generate adult-only content (requires consent category)
-                                        </Typography>
-                                    </Box>
-                                }
+                        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                            <TextField
+                                size="small"
+                                label="Count (per combination)"
+                                type="number"
+                                value={form.count}
+                                onChange={(e) => setForm({ ...form, count: Math.min(50, Math.max(1, parseInt(e.target.value) || 1)) })}
+                                inputProps={{ min: 1, max: 50 }}
+                                sx={{ width: 180 }}
                             />
-                        )}
-
-                        <Alert severity="info">
-                            The AI will generate a mix of truths and dares based on the selected filters.
-                            Generated tasks will be saved as active and can be edited later.
-                        </Alert>
+                            <Typography variant="caption" color="text.secondary">
+                                {!form.category_id && !form.age_group && !form.language
+                                    ? 'Will generate for all combinations'
+                                    : `${form.count} truths + ${form.count} dares per combination`}
+                            </Typography>
+                        </Box>
 
                         <Button
                             variant="contained"
-                            size="large"
-                            startIcon={generateMutation.isPending ? <CircularProgress size={20} color="inherit" /> : <GenerateIcon />}
+                            startIcon={generateMutation.isPending ? <CircularProgress size={16} color="inherit" /> : <GenerateIcon />}
                             onClick={handleGenerate}
-                            disabled={generateMutation.isPending || !form.category_id}
-                            sx={{ py: 1.5 }}
+                            disabled={generateMutation.isPending}
                         >
-                            {generateMutation.isPending ? 'Generating...' : 'Generate Tasks'}
+                            {generateMutation.isPending ? 'Generating...' : 'Generate'}
                         </Button>
                     </Box>
                 </CardContent>
@@ -209,7 +200,7 @@ export default function GeneratePage() {
 
             <Snackbar
                 open={snackbar.open}
-                autoHideDuration={4000}
+                autoHideDuration={6000}
                 onClose={() => setSnackbar({ ...snackbar, open: false })}
             >
                 <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>

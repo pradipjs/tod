@@ -374,7 +374,6 @@ backend/
 - type (truth/dare)
 - category_id (UUID, FK to categories)
 - text (JSON - multilingual)
-- hint (JSON - multilingual, optional)
 - min_age (int, default: 0)
 - intensity (1-3, default: 2)
 - requires_consent (bool, default: false)

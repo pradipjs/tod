@@ -106,17 +106,14 @@ func (s *StringArray) Scan(value interface{}) error {
 }
 
 // Task represents a truth or dare task/question.
-// Schema: { id, category_id, type (truth/dare), text: { en, es, hi, ... }, min_age }
+// Schema: { id, category_id, type (truth/dare), text, language }
 type Task struct {
 	BaseModel
-	CategoryID      string           `gorm:"type:varchar(36);not null;index:idx_task_category" json:"category_id"`
-	Category        *Category        `gorm:"foreignKey:CategoryID" json:"category,omitempty"`
-	Type            string           `gorm:"type:varchar(10);not null;index:idx_task_type" json:"type"` // "truth" or "dare"
-	Text            MultilingualText `gorm:"type:json;not null" json:"text"`
-	Hint            MultilingualText `gorm:"type:json" json:"hint,omitempty"`
-	MinAge          int              `gorm:"default:0;index:idx_task_min_age" json:"min_age"`
-	RequiresConsent bool             `gorm:"default:false" json:"requires_consent"`
-	IsActive        bool             `gorm:"default:true;index:idx_task_active" json:"is_active"`
+	CategoryID string    `gorm:"type:varchar(36);not null;index:idx_task_category" json:"category_id"`
+	Category   *Category `gorm:"foreignKey:CategoryID" json:"category,omitempty"`
+	Type       string    `gorm:"type:varchar(10);not null;index:idx_task_type" json:"type"` // "truth" or "dare"
+	Text       string    `gorm:"type:text;not null" json:"text"`
+	Language   string    `gorm:"type:varchar(2);not null;index:idx_task_language" json:"language"` // 2-char code: en, hi, ur, etc.
 }
 
 // TableName returns the table name for Task.
@@ -220,48 +217,32 @@ func (c *Category) ToResponse() CategoryResponse {
 
 // TaskResponse is the API response format for a task.
 type TaskResponse struct {
-	ID              string            `json:"id"`
-	CategoryID      string            `json:"category_id"`
-	Category        *CategoryResponse `json:"category,omitempty"`
-	Type            string            `json:"type"`
-	AgeGroup        string            `json:"age_group"`
-	Text            MultilingualText  `json:"text"`
-	Hint            MultilingualText  `json:"hint,omitempty"`
-	RequiresConsent bool              `json:"requires_consent"`
-	IsActive        bool              `json:"is_active"`
-	CreatedAt       string            `json:"created_at"`
-	UpdatedAt       string            `json:"updated_at"`
+	ID         string            `json:"id"`
+	CategoryID string            `json:"category_id"`
+	Category   *CategoryResponse `json:"category,omitempty"`
+	Type       string            `json:"type"`
+	Text       string            `json:"text"`
+	Language   string            `json:"language"`
+	CreatedAt  string            `json:"created_at"`
+	UpdatedAt  string            `json:"updated_at"`
 }
 
 // ToResponse converts a Task to TaskResponse.
 func (t *Task) ToResponse() TaskResponse {
 	resp := TaskResponse{
-		ID:              t.ID,
-		CategoryID:      t.CategoryID,
-		Type:            t.Type,
-		AgeGroup:        GetAgeGroupForMinAge(t.MinAge),
-		Text:            t.Text,
-		Hint:            t.Hint,
-		RequiresConsent: t.RequiresConsent,
-		IsActive:        t.IsActive,
-		CreatedAt:       t.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		UpdatedAt:       t.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+		ID:         t.ID,
+		CategoryID: t.CategoryID,
+		Type:       t.Type,
+		Text:       t.Text,
+		Language:   t.Language,
+		CreatedAt:  t.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		UpdatedAt:  t.UpdatedAt.Format("2006-01-02T15:04:05Z"),
 	}
 	if t.Category != nil {
 		catResp := t.Category.ToResponse()
 		resp.Category = &catResp
 	}
 	return resp
-}
-
-// GetAgeGroupForMinAge returns the age group for a given minimum age.
-func GetAgeGroupForMinAge(minAge int) string {
-	if minAge >= 18 {
-		return AgeGroupAdults
-	} else if minAge >= 13 {
-		return AgeGroupTeen
-	}
-	return AgeGroupKids
 }
 
 // ErrorResponse is the standard error response format.

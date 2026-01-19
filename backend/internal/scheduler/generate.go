@@ -283,12 +283,10 @@ func (a *AutoGenerateJob) doGenerate(
 	// Save truths
 	for _, truth := range content.Truths {
 		task := &models.Task{
-			CategoryID:      category.ID,
-			Type:            models.TaskTypeTruth,
-			Text:            models.MultilingualText{language: truth},
-			MinAge:          models.GetMinAgeForGroup(ageGroup),
-			RequiresConsent: category.RequiresConsent,
-			IsActive:        true,
+			CategoryID: category.ID,
+			Type:       models.TaskTypeTruth,
+			Text:       truth,
+			Language:   language,
 		}
 		task.ID = uuid.New().String()
 
@@ -300,12 +298,10 @@ func (a *AutoGenerateJob) doGenerate(
 	// Save dares
 	for _, dare := range content.Dares {
 		task := &models.Task{
-			CategoryID:      category.ID,
-			Type:            models.TaskTypeDare,
-			Text:            models.MultilingualText{language: dare},
-			MinAge:          models.GetMinAgeForGroup(ageGroup),
-			RequiresConsent: category.RequiresConsent,
-			IsActive:        true,
+			CategoryID: category.ID,
+			Type:       models.TaskTypeDare,
+			Text:       dare,
+			Language:   language,
 		}
 		task.ID = uuid.New().String()
 

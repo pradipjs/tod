@@ -45,11 +45,8 @@ export interface Task {
     category_id: string;
     category?: Category;
     type: TaskType;
-    age_group: AgeGroup;
-    text: MultilingualText;
-    hint?: MultilingualText;
-    requires_consent: boolean;
-    is_active: boolean;
+    text: string;
+    language: Language;
     created_at: string;
     updated_at: string;
 }
@@ -67,10 +64,8 @@ export interface CreateCategoryDto {
 export interface CreateTaskDto {
     category_id: string;
     type: TaskType;
-    text: MultilingualText;
-    hint?: MultilingualText;
-    min_age: number;
-    requires_consent: boolean;
+    text: string;
+    language: Language;
 }
 
 // API response types
@@ -92,14 +87,22 @@ export interface SuccessResponse {
     message: string;
 }
 
-// Generate request type
+// Generate tasks response with detailed counts
+export interface GenerateTasksResponse {
+    success: boolean;
+    message: string;
+    tasks_created: number;
+    total_truths_count: number;
+    total_dares_count: number;
+    combinations_count: number;
+}
+
+// Generate request type - null values mean "all"
 export interface GenerateRequest {
-    age_group: AgeGroup;
-    category_id: string;
-    category_name: string;
-    language: Language;
+    age_group: AgeGroup | null;
+    category_id: string | null;
+    language: Language | null;
     count: number;
-    explicit_mode: boolean;
 }
 
 // Filter types
@@ -110,10 +113,9 @@ export interface CategoryFilter {
 
 export interface TaskFilter {
     category_ids?: string[];
-    age_groups?: AgeGroup[];
     types?: TaskType[];
+    language?: Language;
     languages?: Language[];
-    active?: boolean;
     page?: number;
     page_size?: number;
 }

@@ -237,42 +237,6 @@ func (h *CategoryHandler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, category.ToResponse())
 }
 
-// Delete godoc
-// @Summary Delete category
-// @Description Delete a category (soft delete)
-// @Tags categories
-// @Accept json
-// @Produce json
-// @Param id path string true "Category ID"
-// @Success 200 {object} models.SuccessResponse
-// @Failure 404 {object} models.ErrorResponse
-// @Failure 500 {object} models.ErrorResponse
-// @Router /categories/{id} [delete]
-func (h *CategoryHandler) Delete(c *gin.Context) {
-	id := c.Param("id")
-
-	if _, err := h.repo.FindByID(id); err != nil {
-		c.JSON(http.StatusNotFound, models.ErrorResponse{
-			Error:   "not_found",
-			Message: "Category not found",
-		})
-		return
-	}
-
-	if err := h.repo.Delete(id); err != nil {
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			Error:   "database_error",
-			Message: "Failed to delete category",
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, models.SuccessResponse{
-		Success: true,
-		Message: "Category deleted successfully",
-	})
-}
-
 // Count godoc
 // @Summary Get category count
 // @Description Get total count of categories with optional filters
@@ -318,5 +282,53 @@ func (h *CategoryHandler) Count(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"count": count,
+	})
+}
+
+// ReorderCategoriesRequest is the request body for reordering categories.
+type ReorderCategoriesRequest struct {
+	Items []repository.ReorderItem `json:"items" binding:"required"`
+}
+
+// Reorder godoc
+// @Summary Reorder categories
+// @Description Update the sort order of multiple categories
+// @Tags categories
+// @Accept json
+// @Produce json
+// @Param request body ReorderCategoriesRequest true "Reorder items"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /categories/reorder [post]
+func (h *CategoryHandler) Reorder(c *gin.Context) {
+	var req ReorderCategoriesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "validation_error",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	if len(req.Items) == 0 {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "validation_error",
+			Message: "Items array cannot be empty",
+		})
+		return
+	}
+
+	if err := h.repo.Reorder(req.Items); err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "database_error",
+			Message: "Failed to reorder categories",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Categories reordered successfully",
 	})
 }

@@ -7,12 +7,13 @@ import {
     type CreateCategoryDto,
     type CreateTaskDto,
     type GenerateRequest,
+    type GenerateTasksResponse,
     type Language,
     LANGUAGES,
     type PaginatedResponse,
     type SuccessResponse,
     type Task,
-    type TaskFilter,
+    type TaskFilter
 } from '../types';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080') + '/api/v1';
@@ -119,11 +120,6 @@ export const updateCategory = async (id: string, data: Partial<CreateCategoryDto
     return response.data;
 };
 
-export const deleteCategory = async (id: string): Promise<SuccessResponse> => {
-    const response = await api.delete<SuccessResponse>(`/categories/${id}`);
-    return response.data;
-};
-
 export const getCategoryCount = async (filter?: CategoryFilter): Promise<number> => {
     const params = new URLSearchParams();
     if (filter?.age_groups?.length) {
@@ -137,6 +133,10 @@ export const getCategoryCount = async (filter?: CategoryFilter): Promise<number>
     return response.data.count;
 };
 
+export const reorderCategories = async (items: { id: string; sort_order: number }[]): Promise<void> => {
+    await api.post('/categories/reorder', { items });
+};
+
 // ============ TASK APIs ============
 
 export const getTasks = async (filter?: TaskFilter): Promise<PaginatedResponse<Task>> => {
@@ -144,17 +144,14 @@ export const getTasks = async (filter?: TaskFilter): Promise<PaginatedResponse<T
     if (filter?.category_ids?.length) {
         params.set('category_ids', filter.category_ids.join(','));
     }
-    if (filter?.age_groups?.length) {
-        params.set('age_groups', filter.age_groups.join(','));
-    }
     if (filter?.types?.length) {
         params.set('types', filter.types.join(','));
     }
+    if (filter?.language) {
+        params.set('language', filter.language);
+    }
     if (filter?.languages?.length) {
         params.set('languages', filter.languages.join(','));
-    }
-    if (filter?.active !== undefined) {
-        params.set('active', String(filter.active));
     }
     if (filter?.page !== undefined) {
         params.set('offset', String((filter.page - 1) * (filter.page_size || 20)));
@@ -195,8 +192,11 @@ export const getTaskCount = async (filter?: TaskFilter): Promise<number> => {
     if (filter?.types?.length) {
         params.set('types', filter.types.join(','));
     }
-    if (filter?.active !== undefined) {
-        params.set('active', String(filter.active));
+    if (filter?.language) {
+        params.set('language', filter.language);
+    }
+    if (filter?.languages?.length) {
+        params.set('languages', filter.languages.join(','));
     }
 
     const response = await api.get<{ count: number }>(`/tasks/count?${params.toString()}`);
@@ -205,8 +205,14 @@ export const getTaskCount = async (filter?: TaskFilter): Promise<number> => {
 
 // ============ GENERATE API ============
 
-export const generateTasks = async (data: GenerateRequest): Promise<SuccessResponse> => {
-    const response = await api.post<SuccessResponse>('/generate', data);
+// Generate tasks with extended timeout (25 categories × 10 languages × 3 age groups = 750 combinations max)
+// At ~3-5 seconds per call, this could take 30+ minutes for full generation
+const GENERATE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+
+export const generateTasks = async (data: GenerateRequest): Promise<GenerateTasksResponse> => {
+    const response = await api.post<GenerateTasksResponse>('/generate', data, {
+        timeout: GENERATE_TIMEOUT_MS,
+    });
     return response.data;
 };
 
