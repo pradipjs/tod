@@ -7,17 +7,27 @@ set -e
 
 echo "🚀 Building backend with BuildKit optimizations..."
 
-# Ensure host database directory exists with proper permissions
+# Define paths
 DB_HOST_PATH="/safe/db"
-echo "📁 Ensuring database directory exists at $DB_HOST_PATH..."
+DB_FILE="$DB_HOST_PATH/truthordare.db"
+
+# Ensure host database directory exists with proper permissions
+echo "📁 Checking database directory at $DB_HOST_PATH..."
 if [ ! -d "$DB_HOST_PATH" ]; then
-    echo "Creating $DB_HOST_PATH..."
+    echo "⚠️  Creating $DB_HOST_PATH..."
     sudo mkdir -p "$DB_HOST_PATH"
 fi
+
+# Set permissions
+echo "🔒 Setting permissions on $DB_HOST_PATH..."
 sudo chmod 777 "$DB_HOST_PATH"
-echo "✅ Database directory ready: $(ls -la $DB_HOST_PATH 2>/dev/null || echo 'empty')"
+
+# Show current state
+echo "✅ Database directory ready:"
+ls -la "$DB_HOST_PATH"
 
 # Force stop and remove existing container
+echo ""
 echo "🗑️  Cleaning up existing container..."
 
 # Get container PID and kill process
@@ -64,22 +74,40 @@ fi
 sudo docker rm -f tod-backend 2>/dev/null || true
 
 # Start container
+echo "▶️  Starting container..."
 sudo docker-compose up -d
 
-# Wait a moment for container to start
-sleep 3
+# Wait for container to initialize
+echo ""
+echo "⏳ Waiting for container to initialize..."
+sleep 5
+
+echo ""
+echo "🔍 Verifying volume mount..."
+MOUNT_INFO=$(sudo docker inspect tod-backend -f '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{"\n"}}{{end}}' 2>/dev/null || echo "ERROR: Could not inspect container")
+echo "$MOUNT_INFO"
 
 echo ""
 echo "📊 Checking database file..."
-if [ -f "$DB_HOST_PATH/truthordare.db" ]; then
-    echo "✅ Database file exists at $DB_HOST_PATH/truthordare.db"
-    ls -la "$DB_HOST_PATH/truthordare.db"
+if [ -f "$DB_FILE" ]; then
+    echo "✅ SUCCESS: Database file exists at $DB_FILE"
+    ls -lh "$DB_FILE"
 else
-    echo "⚠️  Database file not yet created at $DB_HOST_PATH/truthordare.db"
-    echo "   Checking container logs..."
-    sudo docker-compose logs --tail=20
+    echo "❌ ERROR: Database file NOT found at $DB_FILE"
+    echo ""
+    echo "📁 Contents of $DB_HOST_PATH:"
+    ls -la "$DB_HOST_PATH"
+    echo ""
+    echo "🐳 Checking container's /data directory:"
+    sudo docker exec tod-backend ls -la /data || echo "ERROR: Could not list /data in container"
+    echo ""
+    echo "📋 Recent container logs:"
+    sudo docker-compose logs --tail=30
 fi
 
 echo ""
-echo "Status: docker-compose ps"
-echo "Logs:   docker-compose logs -f"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Status: sudo docker-compose ps"
+echo "Logs:   sudo docker-compose logs -f"
+echo "Shell:  sudo docker exec -it tod-backend sh"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

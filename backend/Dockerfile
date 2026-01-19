@@ -17,7 +17,6 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY . .
 
 # Build the application with CGO enabled for SQLite
-# Set _FILE_OFFSET_BITS=64 for musl compatibility with go-sqlite3
 ENV CGO_CFLAGS="-D_LARGEFILE64_SOURCE"
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
@@ -37,17 +36,12 @@ COPY --from=builder /app/main .
 # Copy prompt templates
 COPY --from=builder /app/internal/prompts/*.txt ./internal/prompts/
 
-# Create /data directory with proper permissions
-# This ensures the directory exists even before volume mount
-# The volume mount will overlay this directory with the host path
-RUN mkdir -p /data && chmod 777 /data
-
-# Environment variables (can be overridden)
-ENV APP_ENV=production
-ENV PORT=8080
-ENV DB_PATH=/data/truthordare.db
-ENV CORS_ORIGINS=http://localhost:3000
-ENV LOG_LEVEL=info
+# Environment variables (overridable in docker-compose)
+ENV APP_ENV=production \
+    PORT=8080 \
+    DB_PATH=/data/truthordare.db \
+    CORS_ORIGINS=http://localhost:3000 \
+    LOG_LEVEL=info
 
 # Expose port
 EXPOSE 8080
