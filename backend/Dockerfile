@@ -1,47 +1,36 @@
+
 # Build stage
 FROM golang:1.21-alpine AS builder
+
+WORKDIR /app
 
 # Install build dependencies
 RUN apk add --no-cache gcc musl-dev sqlite-dev
 
-WORKDIR /app
-
-# Copy go mod files
+# Copy go mod files and download dependencies
 COPY go.mod go.sum ./
+RUN go mod download
 
-# Download dependencies with cache mount
-RUN --mount=type=cache,target=/go/pkg/mod \
-    go mod download
-
-# Copy source code
+# Copy the rest of the source code
 COPY . .
 
-# Build the application with CGO enabled for SQLite
-ENV CGO_CFLAGS="-D_LARGEFILE64_SOURCE"
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -ldflags="-s -w" -o main ./cmd/api
+# Build the Go app (CGO enabled for SQLite)
+RUN CGO_ENABLED=1 go build -o main ./cmd/api
 
-# Final stage
+# Final minimal image
 FROM alpine:3.19
+
+WORKDIR /app
 
 # Install runtime dependencies
 RUN apk add --no-cache ca-certificates sqlite-libs tzdata
 
-WORKDIR /app
-
-# Copy binary from builder
+# Copy the built binary and prompts
 COPY --from=builder /app/main .
-
-# Copy prompt templates
-COPY --from=builder /app/internal/prompts/*.txt ./internal/prompts/
+COPY --from=builder /app/internal/prompts ./internal/prompts
 
 # Expose port
 EXPOSE 8080
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/v1/health || exit 1
-
-# Run the application
+# Run the app
 CMD ["./main"]
