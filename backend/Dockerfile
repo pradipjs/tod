@@ -36,13 +36,6 @@ COPY --from=builder /app/main .
 # Copy prompt templates
 COPY --from=builder /app/internal/prompts/*.txt ./internal/prompts/
 
-# Environment variables (overridable in docker-compose)
-ENV APP_ENV=production \
-    PORT=8080 \
-    DB_PATH=/data/truthordare.db \
-    CORS_ORIGINS=http://localhost:3000 \
-    LOG_LEVEL=info
-
 # Expose port
 EXPOSE 8080
 

@@ -2,22 +2,17 @@ services:
   backend:
     build:
       context: .
-      dockerfile: Dockerfile
     container_name: tod-backend
     restart: unless-stopped
     ports:
       - "${PORT:-8080}:8080"
     volumes:
-      # Bind mount: /safe/db on host maps to /data in container
-      # Database file will be created at /safe/db/truthordare.db on host
-      - type: bind
-        source: /safe/db
-        target: /data
+      - /safe/db:/data
     environment:
       - APP_ENV=${APP_ENV:-production}
-      - PORT=8080
+      - PORT=${PORT:-8080}
       - LOG_LEVEL=${LOG_LEVEL:-info}
-      - DB_PATH=${DB_PATH:-/data/truthordare.db}
+      - DB_PATH=/data/truthordare.db
       - API_PREFIX=${API_PREFIX:-/api}
       - API_VERSION=${API_VERSION:-v1}
       - ADMIN_OTP_KEY=${ADMIN_OTP_KEY}
