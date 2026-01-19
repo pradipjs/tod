@@ -1,6 +1,9 @@
 package database
 
 import (
+	"os"
+	"path/filepath"
+
 	"github.com/rs/zerolog/log"
 	"github.com/truthordare/backend/internal/config"
 	"github.com/truthordare/backend/internal/models"
@@ -11,7 +14,24 @@ import (
 
 // Initialize creates a new database connection.
 func Initialize(cfg *config.Config) (*gorm.DB, error) {
-	dialector := sqlite.Open(cfg.DSN())
+	dbPath := cfg.DSN()
+	log.Info().Str("db_path", dbPath).Msg("Initializing database")
+
+	// Ensure the directory exists for the database file
+	dbDir := filepath.Dir(dbPath)
+	if dbDir != "." && dbDir != "" {
+		log.Info().Str("db_dir", dbDir).Msg("Ensuring database directory exists")
+		if err := os.MkdirAll(dbDir, 0755); err != nil {
+			log.Error().Err(err).Str("db_dir", dbDir).Msg("Failed to create database directory")
+			return nil, err
+		}
+		// Log directory info
+		if info, err := os.Stat(dbDir); err == nil {
+			log.Info().Str("db_dir", dbDir).Str("mode", info.Mode().String()).Msg("Database directory ready")
+		}
+	}
+
+	dialector := sqlite.Open(dbPath)
 
 	// Configure GORM logger
 	gormLogger := logger.Default.LogMode(logger.Silent)
@@ -23,10 +43,18 @@ func Initialize(cfg *config.Config) (*gorm.DB, error) {
 		Logger: gormLogger,
 	})
 	if err != nil {
+		log.Error().Err(err).Str("db_path", dbPath).Msg("Failed to open database")
 		return nil, err
 	}
 
-	log.Info().Msg("Database connection established")
+	// Verify database file exists after connection
+	if info, err := os.Stat(dbPath); err == nil {
+		log.Info().Str("db_path", dbPath).Int64("size", info.Size()).Msg("Database file created/opened")
+	} else {
+		log.Warn().Err(err).Str("db_path", dbPath).Msg("Database file not found after connection")
+	}
+
+	log.Info().Str("db_path", dbPath).Msg("Database connection established")
 
 	return db, nil
 }

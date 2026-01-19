@@ -7,6 +7,16 @@ set -e
 
 echo "🚀 Building backend with BuildKit optimizations..."
 
+# Ensure host database directory exists with proper permissions
+DB_HOST_PATH="/safe/db"
+echo "📁 Ensuring database directory exists at $DB_HOST_PATH..."
+if [ ! -d "$DB_HOST_PATH" ]; then
+    echo "Creating $DB_HOST_PATH..."
+    sudo mkdir -p "$DB_HOST_PATH"
+fi
+sudo chmod 777 "$DB_HOST_PATH"
+echo "✅ Database directory ready: $(ls -la $DB_HOST_PATH 2>/dev/null || echo 'empty')"
+
 # Force stop and remove existing container
 echo "🗑️  Cleaning up existing container..."
 
@@ -55,6 +65,20 @@ sudo docker rm -f tod-backend 2>/dev/null || true
 
 # Start container
 sudo docker-compose up -d
+
+# Wait a moment for container to start
+sleep 3
+
+echo ""
+echo "📊 Checking database file..."
+if [ -f "$DB_HOST_PATH/truthordare.db" ]; then
+    echo "✅ Database file exists at $DB_HOST_PATH/truthordare.db"
+    ls -la "$DB_HOST_PATH/truthordare.db"
+else
+    echo "⚠️  Database file not yet created at $DB_HOST_PATH/truthordare.db"
+    echo "   Checking container logs..."
+    sudo docker-compose logs --tail=20
+fi
 
 echo ""
 echo "Status: docker-compose ps"
