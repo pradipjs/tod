@@ -7,12 +7,12 @@ services:
     ports:
       - "${PORT:-8080}:8080"
     volumes:
-      - /safe/db:/data
+      - /safe/db:/app/data
     environment:
       - APP_ENV=${APP_ENV:-production}
       - PORT=${PORT:-8080}
       - LOG_LEVEL=${LOG_LEVEL:-info}
-      - DB_PATH=/data/truthordare.db
+      - DB_PATH=/app/data/truthordare.db
       - API_PREFIX=${API_PREFIX:-/api}
       - API_VERSION=${API_VERSION:-v1}
       - ADMIN_OTP_KEY=${ADMIN_OTP_KEY}
