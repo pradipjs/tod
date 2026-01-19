@@ -10,12 +10,15 @@ services:
     ports:
       - "${PORT:-8080}:8080"
     volumes:
+      # Option 1: Bind mount to host directory (create /safe/db first with: sudo mkdir -p /safe/db && sudo chmod 777 /safe/db)
       - /safe/db:/data
+      # Option 2: Use named volume (uncomment below and comment above)
+      # - tod-data:/data
     environment:
       - APP_ENV=${APP_ENV:-production}
       - PORT=8080
       - LOG_LEVEL=${LOG_LEVEL:-info}
-      - DB_PATH=${DB_PATH:-/data/truthordare.db}
+      - DB_PATH=/data/truthordare.db
       - API_PREFIX=${API_PREFIX:-/api}
       - API_VERSION=${API_VERSION:-v1}
       - ADMIN_OTP_KEY=${ADMIN_OTP_KEY}
@@ -38,3 +41,7 @@ services:
       timeout: 3s
       start_period: 5s
       retries: 3
+
+# Uncomment if using named volume instead of bind mount
+# volumes:
+#   tod-data:

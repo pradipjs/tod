@@ -37,8 +37,8 @@ COPY --from=builder /app/main .
 # Copy prompt templates
 COPY --from=builder /app/internal/prompts/*.txt ./internal/prompts/
 
-# Create data directory for database volume
-RUN mkdir -p /data
+# Note: /data directory will be created by the volume mount in docker-compose
+# The database file will be stored outside the container at the mounted path
 
 # Environment variables (can be overridden)
 ENV APP_ENV=production
