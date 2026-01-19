@@ -14,7 +14,8 @@ RUN go mod download
 # Copy the rest of the source code
 COPY . .
 
-# Build the Go app (CGO enabled for SQLite)
+# Build the Go app (CGO enabled for SQLite, musl compatibility)
+ENV CGO_CFLAGS="-D_LARGEFILE64_SOURCE"
 RUN CGO_ENABLED=1 go build -o main ./cmd/api
 
 # Final minimal image
