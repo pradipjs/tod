@@ -10,7 +10,7 @@ services:
       - "8080:8080"
     volumes:
       - type: bind
-        source: /safe/db
+        source: /var/lib/tod
         target: /data
         read_only: false
     environment:
