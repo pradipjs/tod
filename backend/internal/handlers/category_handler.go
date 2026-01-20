@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -48,14 +49,14 @@ func (h *CategoryHandler) List(c *gin.Context) {
 	}
 
 	// Parse active status
-	if active := c.Query("active"); active != "" {
-		if val, err := strconv.ParseBool(active); err == nil {
+	activeParam := c.Query("active")
+	if activeParam != "" {
+		if val, err := strconv.ParseBool(activeParam); err == nil {
 			filter.IsActive = &val
+			log.Printf("[DEBUG] Category List - filter.IsActive set to: %v", *filter.IsActive)
 		}
 	} else {
-		// Default to active only
-		active := true
-		filter.IsActive = &active
+		log.Printf("[DEBUG] Category List - no active filter, showing all categories")
 	}
 
 	categories, err := h.repo.FindAll(filter)
@@ -66,6 +67,8 @@ func (h *CategoryHandler) List(c *gin.Context) {
 		})
 		return
 	}
+
+	log.Printf("[DEBUG] Category List - found %d categories", len(categories))
 
 	// Convert to response format
 	response := make([]models.CategoryResponse, len(categories))

@@ -1,6 +1,8 @@
 import {
     Add as AddIcon,
     DragIndicator as DragIcon,
+    ExpandLess as ExpandLessIcon,
+    FilterList as FilterIcon,
     AutoAwesome as GenerateIcon,
 } from '@mui/icons-material';
 import {
@@ -10,6 +12,7 @@ import {
     Card,
     Chip,
     CircularProgress,
+    Collapse,
     Dialog,
     DialogActions,
     DialogContent,
@@ -34,7 +37,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import { createCategory, generateCategoryLabels, getCategories, reorderCategories, updateCategory } from '../api';
 import EmojiPicker from '../components/EmojiPicker';
-import { AGE_GROUPS, LANGUAGES, LANGUAGE_NAMES, type AgeGroup, type Category, type CreateCategoryDto } from '../types';
+import { AGE_GROUPS, LANGUAGES, LANGUAGE_NAMES, type AgeGroup, type Category, type CategoryFilter, type CreateCategoryDto } from '../types';
 
 const INITIAL_FORM: CreateCategoryDto = {
     emoji: '📝',
@@ -65,6 +68,10 @@ export default function CategoriesPage() {
     });
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+    const [filterOpen, setFilterOpen] = useState(false);
+
+    // Filter state: 'all' | 'active' | 'inactive' - default to 'all'
+    const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
     // Validate category form
     const validateCategoryForm = (): boolean => {
@@ -84,9 +91,14 @@ export default function CategoriesPage() {
         return Object.keys(errors).length === 0;
     };
 
+    // Build filter based on status
+    const filter: CategoryFilter | undefined = statusFilter === 'all'
+        ? undefined  // Don't pass filter to get all categories
+        : { active: statusFilter === 'active' };
+
     const { data: categories, isLoading, error } = useQuery({
-        queryKey: ['categories'],
-        queryFn: () => getCategories(),
+        queryKey: ['categories', statusFilter],
+        queryFn: () => filter ? getCategories(filter) : getCategories(),
     });
 
     const createMutation = useMutation({
@@ -239,10 +251,40 @@ export default function CategoriesPage() {
                 <Typography variant="h5" fontWeight={700}>
                     Categories {categories && <Chip label={categories.length} size="small" sx={{ ml: 1, height: 22 }} />}
                 </Typography>
-                <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={handleCreate}>
-                    Add
-                </Button>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={filterOpen ? <ExpandLessIcon /> : <FilterIcon />}
+                        onClick={() => setFilterOpen(!filterOpen)}
+                    >
+                        Filters
+                    </Button>
+                    <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={handleCreate}>
+                        Add
+                    </Button>
+                </Box>
             </Box>
+
+            {/* Filters */}
+            <Collapse in={filterOpen}>
+                <Card sx={{ mb: 2, p: 1.5 }}>
+                    <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <FormControl size="small" sx={{ minWidth: 140 }}>
+                            <InputLabel>Status</InputLabel>
+                            <Select
+                                value={statusFilter}
+                                label="Status"
+                                onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
+                            >
+                                <MenuItem value="all">All</MenuItem>
+                                <MenuItem value="active">Active</MenuItem>
+                                <MenuItem value="inactive">Inactive</MenuItem>
+                            </Select>
+                        </FormControl>
+                    </Box>
+                </Card>
+            </Collapse>
 
             <Card>
                 <TableContainer>
@@ -342,7 +384,30 @@ export default function CategoriesPage() {
 
             {/* Create/Edit Dialog */}
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="md" fullWidth>
-                <DialogTitle>{selectedCategory ? 'Edit Category' : 'Create Category'}</DialogTitle>
+                <DialogTitle>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Typography variant="h6" component="span">
+                            {selectedCategory ? 'Edit Category' : 'Create Category'}
+                        </Typography>
+                        <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={generateLabelsMutation.isPending ? <CircularProgress size={16} /> : <GenerateIcon />}
+                            onClick={() => {
+                                const englishLabel = form.label.en?.trim();
+                                if (!englishLabel) {
+                                    setSnackbar({ open: true, message: 'Please enter English label first', severity: 'error' });
+                                    return;
+                                }
+                                generateLabelsMutation.mutate(englishLabel);
+                            }}
+                            disabled={generateLabelsMutation.isPending || !form.label.en?.trim()}
+                            sx={{ textTransform: 'none' }}
+                        >
+                            Generate
+                        </Button>
+                    </Box>
+                </DialogTitle>
                 <DialogContent>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
                         <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
@@ -402,28 +467,9 @@ export default function CategoriesPage() {
                             />
                         </Box>
 
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography variant="subtitle2">
-                                Labels (multilingual)
-                            </Typography>
-                            <Button
-                                size="small"
-                                variant="outlined"
-                                startIcon={generateLabelsMutation.isPending ? <CircularProgress size={16} /> : <GenerateIcon />}
-                                onClick={() => {
-                                    const englishLabel = form.label.en?.trim();
-                                    if (!englishLabel) {
-                                        setSnackbar({ open: true, message: 'Please enter English label first', severity: 'error' });
-                                        return;
-                                    }
-                                    generateLabelsMutation.mutate(englishLabel);
-                                }}
-                                disabled={generateLabelsMutation.isPending || !form.label.en?.trim()}
-                                sx={{ textTransform: 'none' }}
-                            >
-                                Generate
-                            </Button>
-                        </Box>
+                        <Typography variant="subtitle2" sx={{ mt: 1 }}>
+                            Labels (multilingual)
+                        </Typography>
 
                         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2 }}>
                             {LANGUAGES.map((lang) => (
