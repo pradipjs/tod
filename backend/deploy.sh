@@ -4,6 +4,11 @@ set -e
 
 echo "🚀 Deploying backend..."
 
+# Create data directory if it doesn't exist
+echo "📁 Setting up data directory..."
+sudo mkdir -p /home/tod-data
+sudo chmod 755 /home/tod-data
+
 # Stop and remove existing container
 echo "🛑 Stopping existing container..."
 sudo docker-compose down 2>/dev/null || true
