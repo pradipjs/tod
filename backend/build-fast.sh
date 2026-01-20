@@ -39,13 +39,11 @@ sudo docker volume prune -f 2>/dev/null || true
 # Verify configuration before building
 echo ""
 echo "📋 Verifying docker-compose.yml configuration..."
-echo "Volume mount should be: /safe/db:/app/data"
-echo "DB_PATH should be: /app/data/truthordare.db"
+echo "Volume mount should be: /safe/db:/data"
+echo "DB_PATH should be: /data/truthordare.db"
 echo ""
 grep -A1 "volumes:" docker-compose.yml | head -2
 grep "DB_PATH" docker-compose.yml
-echo ""
-read -p "Press Enter to continue or Ctrl+C to abort..."
 
 # Build and start
 echo "🏗️  Building..."
@@ -64,11 +62,11 @@ echo ""
 echo "1️⃣  Host /safe/db contents:"
 ls -lah /safe/db/
 echo ""
-echo "2️⃣  Container /app/data contents:"
-sudo docker exec tod-backend ls -lah /app/data/
+echo "2️⃣  Container /data contents:"
+sudo docker exec tod-backend ls -lah /data/
 echo ""
 echo "3️⃣  Volume mount info:"
-sudo docker inspect tod-backend -f '{{range .Mounts}}{{if eq .Destination "/app/data"}}Source: {{.Source}} -> Dest: {{.Destination}} (Type: {{.Type}}){{end}}{{end}}'
+sudo docker inspect tod-backend -f '{{range .Mounts}}{{if eq .Destination "/data"}}Source: {{.Source}} -> Dest: {{.Destination}} (Type: {{.Type}}){{end}}{{end}}'
 echo ""
 
 echo "📊 Status:"
