@@ -27,4 +27,4 @@ sudo docker-compose ps
 
 echo ""
 echo "📝 Check logs: sudo docker-compose logs -f"
-echo "🔍 Check database: ls -la /var/lib/tod/"
+echo "🔍 Check database: ls -la /opt/tod/"
