@@ -88,7 +88,7 @@ func DefaultConfig() ClientConfig {
 		APIKey:  apiKey,
 		APIURL:  apiURL,
 		Model:   model,
-		Timeout: 60 * time.Second,
+		Timeout: 120 * time.Second, // Increased for slower networks
 	}
 }
 
@@ -160,18 +160,40 @@ func (c *Client) CompleteWithSystem(systemPrompt, userMessage string, opts ...Co
 }
 
 // CompleteJSON sends a request and parses the response as JSON into the target
+// It will retry up to 3 times if JSON parsing fails due to truncation
 func (c *Client) CompleteJSON(messages []Message, target interface{}, opts ...CompletionOption) error {
-	resp, err := c.Complete(messages, opts...)
-	if err != nil {
-		return err
+	maxRetries := 3
+	var lastErr error
+	var lastContent string
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		resp, err := c.Complete(messages, opts...)
+		if err != nil {
+			lastErr = err
+			if attempt < maxRetries {
+				time.Sleep(time.Duration(attempt) * time.Second) // Backoff: 1s, 2s, 3s
+				continue
+			}
+			return err
+		}
+
+		content := resp.GetContent()
+		lastContent = content
+
+		if err := json.Unmarshal([]byte(content), target); err != nil {
+			lastErr = fmt.Errorf("failed to parse AI response as JSON: %w (attempt %d/%d)", err, attempt, maxRetries)
+			if attempt < maxRetries {
+				time.Sleep(time.Duration(attempt) * time.Second)
+				continue
+			}
+			return fmt.Errorf("%w (content: %s)", lastErr, content)
+		}
+
+		// Success
+		return nil
 	}
 
-	content := resp.GetContent()
-	if err := json.Unmarshal([]byte(content), target); err != nil {
-		return fmt.Errorf("failed to parse AI response as JSON: %w (content: %s)", err, content)
-	}
-
-	return nil
+	return fmt.Errorf("%w (final content: %s)", lastErr, lastContent)
 }
 
 // doRequest performs the actual HTTP request

@@ -132,7 +132,7 @@ func (h *GenerateCategoryLabelsHandler) GenerateCategoryLabels(c *gin.Context) {
 	var labels models.MultilingualText
 	err = h.aiClient.CompleteJSON(messages, &labels,
 		ai.WithTemperature(0.3), // Lower temperature for more consistent translations
-		ai.WithMaxTokens(1000),  // Increased to handle reasoning models
+		ai.WithMaxTokens(2500),  // Increased for multilingual responses
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
