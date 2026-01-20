@@ -6,6 +6,10 @@ services:
       dockerfile: Dockerfile
     container_name: tod-backend
     restart: unless-stopped
+    network_mode: bridge
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     ports:
       - "8080:8080"
     volumes:
